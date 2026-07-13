@@ -51,7 +51,7 @@ class TotalRecordsCard extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF0A1628),
+                  color: Color(0xFF01579B),
                 ),
               ),
               const SizedBox(height: 2),
@@ -106,16 +106,16 @@ class ProgramFormField extends StatelessWidget {
         keyboardType: keyboardType,
         validator: validator ?? (isRequired ? (val) => val == null || val.isEmpty ? 'Required field' : null : null),
         style: TextStyle(
-          color: isLocked ? Colors.grey.shade700 : const Color(0xFF0A1628),
+          color: isLocked ? Colors.grey.shade700 : const Color(0xFF01579B),
           fontWeight: isLocked ? FontWeight.w500 : FontWeight.normal,
         ),
         decoration: InputDecoration(
           labelText: '$label${isRequired ? ' *' : ''}',
           labelStyle: TextStyle(
-            color: isLocked ? Colors.grey.shade500 : const Color(0xFF152238),
+            color: isLocked ? Colors.grey.shade500 : const Color(0xFF0288D1),
             fontSize: 14,
           ),
-          prefixIcon: Icon(prefixIcon, color: const Color(0xFF152238), size: 20),
+          prefixIcon: Icon(prefixIcon, color: const Color(0xFF0288D1), size: 20),
           suffixIcon: isLocked ? const Icon(Icons.lock_outline, color: Colors.grey, size: 18) : null,
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           border: OutlineInputBorder(
@@ -132,7 +132,7 @@ class ProgramFormField extends StatelessWidget {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFF152238), width: 1.5),
+            borderSide: const BorderSide(color: Color(0xFF0288D1), width: 1.5),
           ),
         ),
       ),
@@ -174,15 +174,15 @@ class ProgramDropdownField extends StatelessWidget {
         onChanged: isLocked ? null : onChanged,
         validator: isRequired ? (val) => val == null || val.isEmpty ? 'Required field' : null : null,
         style: TextStyle(
-          color: isLocked ? Colors.grey.shade700 : const Color(0xFF0A1628),
+          color: isLocked ? Colors.grey.shade700 : const Color(0xFF01579B),
         ),
         decoration: InputDecoration(
           labelText: '$label${isRequired ? ' *' : ''}',
           labelStyle: TextStyle(
-            color: isLocked ? Colors.grey.shade500 : const Color(0xFF152238),
+            color: isLocked ? Colors.grey.shade500 : const Color(0xFF0288D1),
             fontSize: 14,
           ),
-          prefixIcon: Icon(prefixIcon, color: const Color(0xFF152238), size: 20),
+          prefixIcon: Icon(prefixIcon, color: const Color(0xFF0288D1), size: 20),
           suffixIcon: isLocked ? const Icon(Icons.lock_outline, color: Colors.grey, size: 18) : null,
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           border: OutlineInputBorder(
@@ -199,7 +199,7 @@ class ProgramDropdownField extends StatelessWidget {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFF152238), width: 1.5),
+            borderSide: const BorderSide(color: Color(0xFF0288D1), width: 1.5),
           ),
         ),
         items: items.map((item) {
@@ -262,18 +262,18 @@ class ProgramDateField extends StatelessWidget {
                 }
               },
         style: TextStyle(
-          color: isLocked ? Colors.grey.shade700 : const Color(0xFF0A1628),
+          color: isLocked ? Colors.grey.shade700 : const Color(0xFF01579B),
         ),
         decoration: InputDecoration(
           labelText: '$label${isRequired ? ' *' : ''}',
           labelStyle: TextStyle(
-            color: isLocked ? Colors.grey.shade500 : const Color(0xFF152238),
+            color: isLocked ? Colors.grey.shade500 : const Color(0xFF0288D1),
             fontSize: 14,
           ),
-          prefixIcon: Icon(prefixIcon, color: const Color(0xFF152238), size: 20),
+          prefixIcon: Icon(prefixIcon, color: const Color(0xFF0288D1), size: 20),
           suffixIcon: isLocked
               ? const Icon(Icons.lock_outline, color: Colors.grey, size: 18)
-              : const Icon(Icons.calendar_today, color: Color(0xFF152238), size: 18),
+              : const Icon(Icons.calendar_today, color: Color(0xFF0288D1), size: 18),
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
@@ -289,7 +289,7 @@ class ProgramDateField extends StatelessWidget {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFF152238), width: 1.5),
+            borderSide: const BorderSide(color: Color(0xFF0288D1), width: 1.5),
           ),
         ),
       ),
@@ -334,7 +334,7 @@ class ProgramStatusToggle extends StatelessWidget {
               const Text(
                 'Status *',
                 style: TextStyle(
-                  color: Color(0xFF152238),
+                  color: Color(0xFF0288D1),
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
                 ),
@@ -509,7 +509,7 @@ class StandardButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = isPrimary
         ? ElevatedButton.styleFrom(
-            backgroundColor: isDestructive ? Colors.red.shade700 : const Color(0xFF152238),
+            backgroundColor: isDestructive ? Colors.red.shade700 : const Color(0xFF0288D1),
             foregroundColor: Colors.white,
             disabledBackgroundColor: Colors.grey.shade200,
             disabledForegroundColor: Colors.grey.shade400,
@@ -520,9 +520,9 @@ class StandardButton extends StatelessWidget {
             elevation: 0,
           )
         : OutlinedButton.styleFrom(
-            foregroundColor: isDestructive ? Colors.red.shade700 : const Color(0xFF152238),
+            foregroundColor: isDestructive ? Colors.red.shade700 : const Color(0xFF0288D1),
             side: BorderSide(
-              color: isDestructive ? Colors.red.shade300 : const Color(0xFF152238),
+              color: isDestructive ? Colors.red.shade300 : const Color(0xFF0288D1),
               width: 1.5,
             ),
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),

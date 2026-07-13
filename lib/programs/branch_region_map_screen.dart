@@ -124,7 +124,7 @@ class _BranchRegionMapScreenState extends State<BranchRegionMapScreen> {
           style: const TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF0A1628),
+            color: Color(0xFF01579B),
           ),
         ),
         if (_viewMode != 'GRID')
@@ -218,7 +218,7 @@ class _BranchRegionMapScreenState extends State<BranchRegionMapScreen> {
                   icon: const Icon(Icons.add, color: Colors.white),
                   label: const Text('New Map', style: TextStyle(fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF152238),
+                    backgroundColor: const Color(0xFF0288D1),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                     shape: RoundedRectangleBorder(
@@ -251,7 +251,7 @@ class _BranchRegionMapScreenState extends State<BranchRegionMapScreen> {
             children: [
               Container(
                 decoration: const BoxDecoration(
-                  color: Color(0xFF152238),
+                  color: Color(0xFF0288D1),
                   borderRadius: BorderRadius.only(
                     topLeft: Radius.circular(16),
                     topRight: Radius.circular(16),
@@ -260,7 +260,6 @@ class _BranchRegionMapScreenState extends State<BranchRegionMapScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 child: const Row(
                   children: [
-                    Expanded(child: Text('ORG CODE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
                     Expanded(child: Text('BRANCH CODE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
                     Expanded(child: Text('REGION CODE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
                     Expanded(child: Text('STATUS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
@@ -287,7 +286,6 @@ class _BranchRegionMapScreenState extends State<BranchRegionMapScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       child: Row(
                         children: [
-                          Expanded(child: Text(item.orgCode)),
                           Expanded(child: Text(item.branchCode, style: const TextStyle(fontWeight: FontWeight.bold))),
                           Expanded(child: Text(item.regionCode)),
                           Expanded(child: Align(alignment: Alignment.centerLeft, child: StatusPill(status: item.status))),
@@ -309,7 +307,7 @@ class _BranchRegionMapScreenState extends State<BranchRegionMapScreen> {
                                 ),
                                 ActionIconBtn(
                                   icon: Icons.edit_outlined,
-                                  color: const Color(0xFF152238),
+                                  color: const Color(0xFF0288D1),
                                   onTap: () {
                                     _loadRecord(item);
                                     setState(() {
@@ -370,7 +368,7 @@ class _BranchRegionMapScreenState extends State<BranchRegionMapScreen> {
                   children: [
                     const Text(
                       'Branch Region Map Details',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0A1628)),
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF01579B)),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -416,16 +414,6 @@ class _BranchRegionMapScreenState extends State<BranchRegionMapScreen> {
               spacing: 24,
               runSpacing: 8,
               children: [
-                SizedBox(
-                  width: 250,
-                  child: ProgramFormField(
-                    label: 'Organization Code',
-                    controller: _orgCodeController,
-                    prefixIcon: Icons.business,
-                    isRequired: true,
-                    isLocked: isEdit || isView,
-                  ),
-                ),
                 SizedBox(
                   width: 250,
                   child: ProgramFormField(
@@ -531,7 +519,6 @@ class _BranchRegionMapScreenState extends State<BranchRegionMapScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                _buildDeleteField('Org Code:', _selectedRecord?.orgCode ?? ''),
                 _buildDeleteField('Branch Code:', _selectedRecord?.branchCode ?? ''),
                 _buildDeleteField('Region Code:', _selectedRecord?.regionCode ?? ''),
               ],
@@ -583,7 +570,7 @@ class _BranchRegionMapScreenState extends State<BranchRegionMapScreen> {
             width: 150,
             child: Text(
               label,
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0A1628)),
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF01579B)),
             ),
           ),
           Text(value, style: const TextStyle(color: Colors.black87)),

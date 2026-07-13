@@ -1,417 +1,27 @@
 import 'package:flutter/foundation.dart';
 
-// --- Region Master Model ---
-class RegionMaster {
-  String orgCode;
-  String regionCode;
-  String regionName;
-  String state;
-  String zone;
-  bool status; // Active / Inactive
+import 'models/region_master.dart';
+import 'models/branch_region_map.dart';
+import 'models/loan_product_master.dart';
+import 'models/delinquency_bucket_master.dart';
+import 'models/penalty_rate_history.dart';
+import 'models/asset_classification_gl_map.dart';
+import 'models/prepayment_foreclosure_config.dart';
+import 'models/rate_revision_history.dart';
+import 'models/holiday_calendar.dart';
+import 'models/auth_models.dart';
 
-  RegionMaster({
-    required this.orgCode,
-    required this.regionCode,
-    required this.regionName,
-    required this.state,
-    required this.zone,
-    this.status = true,
-  });
+export 'models/region_master.dart';
+export 'models/branch_region_map.dart';
+export 'models/loan_product_master.dart';
+export 'models/delinquency_bucket_master.dart';
+export 'models/penalty_rate_history.dart';
+export 'models/asset_classification_gl_map.dart';
+export 'models/prepayment_foreclosure_config.dart';
+export 'models/rate_revision_history.dart';
+export 'models/holiday_calendar.dart';
+export 'models/auth_models.dart';
 
-  RegionMaster copyWith({
-    String? orgCode,
-    String? regionCode,
-    String? regionName,
-    String? state,
-    String? zone,
-    bool? status,
-  }) {
-    return RegionMaster(
-      orgCode: orgCode ?? this.orgCode,
-      regionCode: regionCode ?? this.regionCode,
-      regionName: regionName ?? this.regionName,
-      state: state ?? this.state,
-      zone: zone ?? this.zone,
-      status: status ?? this.status,
-    );
-  }
-}
-
-// --- Branch Region Map Model ---
-class BranchRegionMap {
-  String orgCode;
-  String branchCode;
-  String regionCode;
-  bool status;
-
-  BranchRegionMap({
-    required this.orgCode,
-    required this.branchCode,
-    required this.regionCode,
-    this.status = true,
-  });
-
-  BranchRegionMap copyWith({
-    String? orgCode,
-    String? branchCode,
-    String? regionCode,
-    bool? status,
-  }) {
-    return BranchRegionMap(
-      orgCode: orgCode ?? this.orgCode,
-      branchCode: branchCode ?? this.branchCode,
-      regionCode: regionCode ?? this.regionCode,
-      status: status ?? this.status,
-    );
-  }
-}
-
-// --- Loan Product Master Model ---
-class LoanProductMaster {
-  String orgCode;
-  String productCode;
-  String productName;
-  double minAmount;
-  double maxAmount;
-  double interestRate;
-  String interestType; // Flat, Reducing
-  String rateType; // Fixed, Floating
-  String benchmarkRateCode;
-  int minTenureMonths;
-  int maxTenureMonths;
-  String repayFrequency; // Monthly, Weekly, Fortnightly
-  String prinGl;
-  String intGl;
-  String penalGl;
-  bool productStatus;
-
-  LoanProductMaster({
-    required this.orgCode,
-    required this.productCode,
-    required this.productName,
-    required this.minAmount,
-    required this.maxAmount,
-    required this.interestRate,
-    required this.interestType,
-    required this.rateType,
-    required this.benchmarkRateCode,
-    required this.minTenureMonths,
-    required this.maxTenureMonths,
-    required this.repayFrequency,
-    required this.prinGl,
-    required this.intGl,
-    required this.penalGl,
-    this.productStatus = true,
-  });
-
-  LoanProductMaster copyWith({
-    String? orgCode,
-    String? productCode,
-    String? productName,
-    double? minAmount,
-    double? maxAmount,
-    double? interestRate,
-    String? interestType,
-    String? rateType,
-    String? benchmarkRateCode,
-    int? minTenureMonths,
-    int? maxTenureMonths,
-    String? repayFrequency,
-    String? prinGl,
-    String? intGl,
-    String? penalGl,
-    bool? productStatus,
-  }) {
-    return LoanProductMaster(
-      orgCode: orgCode ?? this.orgCode,
-      productCode: productCode ?? this.productCode,
-      productName: productName ?? this.productName,
-      minAmount: minAmount ?? this.minAmount,
-      maxAmount: maxAmount ?? this.maxAmount,
-      interestRate: interestRate ?? this.interestRate,
-      interestType: interestType ?? this.interestType,
-      rateType: rateType ?? this.rateType,
-      benchmarkRateCode: benchmarkRateCode ?? this.benchmarkRateCode,
-      minTenureMonths: minTenureMonths ?? this.minTenureMonths,
-      maxTenureMonths: maxTenureMonths ?? this.maxTenureMonths,
-      repayFrequency: repayFrequency ?? this.repayFrequency,
-      prinGl: prinGl ?? this.prinGl,
-      intGl: intGl ?? this.intGl,
-      penalGl: penalGl ?? this.penalGl,
-      productStatus: productStatus ?? this.productStatus,
-    );
-  }
-}
-
-// --- Delinquency Bucket Master Model ---
-class DelinquencyBucketMaster {
-  String orgCode;
-  String productCode;
-  String delinquencyCode;
-  String bucketLabel;
-  int overdueDaysFrom;
-  int overdueDaysTo;
-  int stageOrder;
-  bool isNpaFlag;
-  double provisionPct;
-  bool bucketStatus;
-
-  DelinquencyBucketMaster({
-    required this.orgCode,
-    required this.productCode,
-    required this.delinquencyCode,
-    required this.bucketLabel,
-    required this.overdueDaysFrom,
-    required this.overdueDaysTo,
-    required this.stageOrder,
-    required this.isNpaFlag,
-    required this.provisionPct,
-    this.bucketStatus = true,
-  });
-
-  DelinquencyBucketMaster copyWith({
-    String? orgCode,
-    String? productCode,
-    String? delinquencyCode,
-    String? bucketLabel,
-    int? overdueDaysFrom,
-    int? overdueDaysTo,
-    int? stageOrder,
-    bool? isNpaFlag,
-    double? provisionPct,
-    bool? bucketStatus,
-  }) {
-    return DelinquencyBucketMaster(
-      orgCode: orgCode ?? this.orgCode,
-      productCode: productCode ?? this.productCode,
-      delinquencyCode: delinquencyCode ?? this.delinquencyCode,
-      bucketLabel: bucketLabel ?? this.bucketLabel,
-      overdueDaysFrom: overdueDaysFrom ?? this.overdueDaysFrom,
-      overdueDaysTo: overdueDaysTo ?? this.overdueDaysTo,
-      stageOrder: stageOrder ?? this.stageOrder,
-      isNpaFlag: isNpaFlag ?? this.isNpaFlag,
-      provisionPct: provisionPct ?? this.provisionPct,
-      bucketStatus: bucketStatus ?? this.bucketStatus,
-    );
-  }
-}
-
-// --- Penalty Rate History Model ---
-class PenaltyRateHistory {
-  String orgCode;
-  String productCode;
-  String delinquencyCode;
-  DateTime effDate;
-  String penaltyType; // Percentage, Fixed
-  double penaltyValue;
-  bool rateStatus;
-
-  PenaltyRateHistory({
-    required this.orgCode,
-    required this.productCode,
-    required this.delinquencyCode,
-    required this.effDate,
-    required this.penaltyType,
-    required this.penaltyValue,
-    this.rateStatus = true,
-  });
-
-  PenaltyRateHistory copyWith({
-    String? orgCode,
-    String? productCode,
-    String? delinquencyCode,
-    DateTime? effDate,
-    String? penaltyType,
-    double? penaltyValue,
-    bool? rateStatus,
-  }) {
-    return PenaltyRateHistory(
-      orgCode: orgCode ?? this.orgCode,
-      productCode: productCode ?? this.productCode,
-      delinquencyCode: delinquencyCode ?? this.delinquencyCode,
-      effDate: effDate ?? this.effDate,
-      penaltyType: penaltyType ?? this.penaltyType,
-      penaltyValue: penaltyValue ?? this.penaltyValue,
-      rateStatus: rateStatus ?? this.rateStatus,
-    );
-  }
-}
-
-// --- Asset Classification GL Map Model ---
-class AssetClassificationGlMap {
-  String orgCode;
-  String productCode;
-  String delinquencyCode;
-  String prinGl;
-  String intGl;
-  String provisionGl;
-  bool mapStatus;
-
-  AssetClassificationGlMap({
-    required this.orgCode,
-    required this.productCode,
-    required this.delinquencyCode,
-    required this.prinGl,
-    required this.intGl,
-    required this.provisionGl,
-    this.mapStatus = true,
-  });
-
-  AssetClassificationGlMap copyWith({
-    String? orgCode,
-    String? productCode,
-    String? delinquencyCode,
-    String? prinGl,
-    String? intGl,
-    String? provisionGl,
-    bool? mapStatus,
-  }) {
-    return AssetClassificationGlMap(
-      orgCode: orgCode ?? this.orgCode,
-      productCode: productCode ?? this.productCode,
-      delinquencyCode: delinquencyCode ?? this.delinquencyCode,
-      prinGl: prinGl ?? this.prinGl,
-      intGl: intGl ?? this.intGl,
-      provisionGl: provisionGl ?? this.provisionGl,
-      mapStatus: mapStatus ?? this.mapStatus,
-    );
-  }
-}
-
-// --- Prepayment / Foreclosure Configuration Model ---
-class PrepaymentForeclosureConfig {
-  String orgCode;
-  String productCode;
-  int lockInPeriodMonths;
-  String prepaymentPenaltyType; // Percentage, Fixed
-  double prepaymentPenaltyValue;
-  String foreclosureFeeType; // Percentage, Fixed
-  double foreclosureFeeValue;
-  String scheduleRecalcMethod; // Re-amortization, Tenure Reduction
-  bool configStatus;
-
-  PrepaymentForeclosureConfig({
-    required this.orgCode,
-    required this.productCode,
-    required this.lockInPeriodMonths,
-    required this.prepaymentPenaltyType,
-    required this.prepaymentPenaltyValue,
-    required this.foreclosureFeeType,
-    required this.foreclosureFeeValue,
-    required this.scheduleRecalcMethod,
-    this.configStatus = true,
-  });
-
-  PrepaymentForeclosureConfig copyWith({
-    String? orgCode,
-    String? productCode,
-    int? lockInPeriodMonths,
-    String? prepaymentPenaltyType,
-    double? prepaymentPenaltyValue,
-    String? foreclosureFeeType,
-    double? foreclosureFeeValue,
-    String? scheduleRecalcMethod,
-    bool? configStatus,
-  }) {
-    return PrepaymentForeclosureConfig(
-      orgCode: orgCode ?? this.orgCode,
-      productCode: productCode ?? this.productCode,
-      lockInPeriodMonths: lockInPeriodMonths ?? this.lockInPeriodMonths,
-      prepaymentPenaltyType: prepaymentPenaltyType ?? this.prepaymentPenaltyType,
-      prepaymentPenaltyValue: prepaymentPenaltyValue ?? this.prepaymentPenaltyValue,
-      foreclosureFeeType: foreclosureFeeType ?? this.foreclosureFeeType,
-      foreclosureFeeValue: foreclosureFeeValue ?? this.foreclosureFeeValue,
-      scheduleRecalcMethod: scheduleRecalcMethod ?? this.scheduleRecalcMethod,
-      configStatus: configStatus ?? this.configStatus,
-    );
-  }
-}
-
-// --- Rate Revision History Model ---
-class RateRevisionHistory {
-  String orgCode;
-  String productCode;
-  DateTime effDate;
-  double revisedRate;
-  String benchmarkRateCode;
-  double spreadPct;
-  String revisionReason;
-  bool revisionStatus;
-
-  RateRevisionHistory({
-    required this.orgCode,
-    required this.productCode,
-    required this.effDate,
-    required this.revisedRate,
-    required this.benchmarkRateCode,
-    required this.spreadPct,
-    required this.revisionReason,
-    this.revisionStatus = true,
-  });
-
-  RateRevisionHistory copyWith({
-    String? orgCode,
-    String? productCode,
-    DateTime? effDate,
-    double? revisedRate,
-    String? benchmarkRateCode,
-    double? spreadPct,
-    String? revisionReason,
-    bool? revisionStatus,
-  }) {
-    return RateRevisionHistory(
-      orgCode: orgCode ?? this.orgCode,
-      productCode: productCode ?? this.productCode,
-      effDate: effDate ?? this.effDate,
-      revisedRate: revisedRate ?? this.revisedRate,
-      benchmarkRateCode: benchmarkRateCode ?? this.benchmarkRateCode,
-      spreadPct: spreadPct ?? this.spreadPct,
-      revisionReason: revisionReason ?? this.revisionReason,
-      revisionStatus: revisionStatus ?? this.revisionStatus,
-    );
-  }
-}
-
-// --- Holiday Calendar Model ---
-class HolidayCalendar {
-  String orgCode;
-  String branchCode;
-  DateTime holidayDate;
-  String holidayName;
-  String holidayType; // National, Regional, Public
-  String dueDateShiftRule; // Shift Next, Shift Prev, No Shift
-  bool calendarStatus;
-
-  HolidayCalendar({
-    required this.orgCode,
-    required this.branchCode,
-    required this.holidayDate,
-    required this.holidayName,
-    required this.holidayType,
-    required this.dueDateShiftRule,
-    this.calendarStatus = true,
-  });
-
-  HolidayCalendar copyWith({
-    String? orgCode,
-    String? branchCode,
-    DateTime? holidayDate,
-    String? holidayName,
-    String? holidayType,
-    String? dueDateShiftRule,
-    bool? calendarStatus,
-  }) {
-    return HolidayCalendar(
-      orgCode: orgCode ?? this.orgCode,
-      branchCode: branchCode ?? this.branchCode,
-      holidayDate: holidayDate ?? this.holidayDate,
-      holidayName: holidayName ?? this.holidayName,
-      holidayType: holidayType ?? this.holidayType,
-      dueDateShiftRule: dueDateShiftRule ?? this.dueDateShiftRule,
-      calendarStatus: calendarStatus ?? this.calendarStatus,
-    );
-  }
-}
 
 // --- Mock Database (In-Memory State Store) ---
 class MockDatabase extends ChangeNotifier {
@@ -567,6 +177,50 @@ class MockDatabase extends ChangeNotifier {
     HolidayCalendar(orgCode: 'ORG01', branchCode: 'ALL', holidayDate: DateTime(2026, 10, 02), holidayName: 'Gandhi Jayanti', holidayType: 'National', dueDateShiftRule: 'Shift Next', calendarStatus: true),
     HolidayCalendar(orgCode: 'ORG01', branchCode: 'BRN-CH01', holidayDate: DateTime(2026, 01, 14), holidayName: 'Pongal', holidayType: 'Regional', dueDateShiftRule: 'Shift Prev', calendarStatus: true),
   ];
+
+  final List<Auth101Config> authConfigs = [
+    const Auth101Config(id: 'PROD-JLG', name: 'JLG Product Setup', approvalReq: true, isTran: false, levels: 1),
+    const Auth101Config(id: 'REGION-MST', name: 'Region Master', approvalReq: true, isTran: false, levels: 1),
+  ];
+
+  final List<AuthRecord> authQueue = [
+    AuthRecord(
+      orgCode: 'ORG01',
+      effDate: '2026-07-13',
+      programId: 'PROD-JLG',
+      primaryKey: 'JLG-NEW',
+      authSl: 'AUTH-2026-001',
+      displayRemarks: 'New Joint Liability Group Product',
+      eUser: 'admin',
+      eDate: '2026-07-13',
+      dataBlocks: [
+        AuthDataBlock(recSl: 1, tableName: 'LOAN_PROD', data: {'productCode': 'PROD-JLG', 'productName': 'JLG Loan'})
+      ],
+    ),
+    AuthRecord(
+      orgCode: 'ORG01',
+      effDate: '2026-07-13',
+      programId: 'REGION-MST',
+      primaryKey: 'REG-EAST',
+      authSl: 'AUTH-2026-002',
+      displayRemarks: 'Create East Region',
+      eUser: 'admin',
+      eDate: '2026-07-13',
+      dataBlocks: [
+        AuthDataBlock(recSl: 1, tableName: 'REGION_MST', data: {'regionCode': 'REG-EAST', 'regionName': 'East Region'})
+      ],
+    ),
+  ];
+
+  void processAuth(String authSl, String action) {
+    authQueue.removeWhere((element) => element.authSl == authSl);
+    notifyListeners();
+  }
+
+  void removeAuth(String authSl) {
+    authQueue.removeWhere((element) => element.authSl == authSl);
+    notifyListeners();
+  }
 
   // --- CRUD Methods: Region Master ---
   void addRegion(RegionMaster record) {

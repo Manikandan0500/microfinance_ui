@@ -153,7 +153,7 @@ class _DelinquencyBucketMasterScreenState extends State<DelinquencyBucketMasterS
           style: const TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF0A1628),
+            color: Color(0xFF01579B),
           ),
         ),
         if (_viewMode != 'GRID')
@@ -248,7 +248,7 @@ class _DelinquencyBucketMasterScreenState extends State<DelinquencyBucketMasterS
                   icon: const Icon(Icons.add, color: Colors.white),
                   label: const Text('New Bucket', style: TextStyle(fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF152238),
+                    backgroundColor: const Color(0xFF0288D1),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                     shape: RoundedRectangleBorder(
@@ -281,7 +281,7 @@ class _DelinquencyBucketMasterScreenState extends State<DelinquencyBucketMasterS
             children: [
               Container(
                 decoration: const BoxDecoration(
-                  color: Color(0xFF152238),
+                  color: Color(0xFF0288D1),
                   borderRadius: BorderRadius.only(
                     topLeft: Radius.circular(16),
                     topRight: Radius.circular(16),
@@ -353,7 +353,7 @@ class _DelinquencyBucketMasterScreenState extends State<DelinquencyBucketMasterS
                                 ),
                                 ActionIconBtn(
                                   icon: Icons.edit_outlined,
-                                  color: const Color(0xFF152238),
+                                  color: const Color(0xFF0288D1),
                                   onTap: () {
                                     _loadRecord(item);
                                     setState(() {
@@ -414,7 +414,7 @@ class _DelinquencyBucketMasterScreenState extends State<DelinquencyBucketMasterS
                   children: [
                     const Text(
                       'Delinquency Bucket Details',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0A1628)),
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF01579B)),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -460,16 +460,6 @@ class _DelinquencyBucketMasterScreenState extends State<DelinquencyBucketMasterS
               spacing: 24,
               runSpacing: 8,
               children: [
-                SizedBox(
-                  width: 250,
-                  child: ProgramFormField(
-                    label: 'Organization Code',
-                    controller: _orgCodeController,
-                    prefixIcon: Icons.business,
-                    isRequired: true,
-                    isLocked: isEdit || isView,
-                  ),
-                ),
                 SizedBox(
                   width: 250,
                   child: ProgramDropdownField(
@@ -571,7 +561,7 @@ class _DelinquencyBucketMasterScreenState extends State<DelinquencyBucketMasterS
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text('Is NPA?', style: TextStyle(color: Color(0xFF152238), fontSize: 11, fontWeight: FontWeight.bold)),
+                            Text('Is NPA?', style: TextStyle(color: Color(0xFF0288D1), fontSize: 11, fontWeight: FontWeight.bold)),
                             SizedBox(height: 2),
                             Text('Regulatory NPA Status', style: TextStyle(color: Colors.black54, fontSize: 13)),
                           ],
@@ -671,7 +661,6 @@ class _DelinquencyBucketMasterScreenState extends State<DelinquencyBucketMasterS
                   ),
                 ),
                 const SizedBox(height: 16),
-                _buildDeleteField('Org Code:', _selectedRecord?.orgCode ?? ''),
                 _buildDeleteField('Product Code:', _selectedRecord?.productCode ?? ''),
                 _buildDeleteField('Delinquency Code:', _selectedRecord?.delinquencyCode ?? ''),
                 _buildDeleteField('Label:', _selectedRecord?.bucketLabel ?? ''),
@@ -725,7 +714,7 @@ class _DelinquencyBucketMasterScreenState extends State<DelinquencyBucketMasterS
             width: 180,
             child: Text(
               label,
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0A1628)),
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF01579B)),
             ),
           ),
           Text(value, style: const TextStyle(color: Colors.black87)),

@@ -146,7 +146,7 @@ class _PrepaymentForeclosureConfigScreenState extends State<PrepaymentForeclosur
           style: const TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF0A1628),
+            color: Color(0xFF01579B),
           ),
         ),
         if (_viewMode != 'GRID')
@@ -240,7 +240,7 @@ class _PrepaymentForeclosureConfigScreenState extends State<PrepaymentForeclosur
                   icon: const Icon(Icons.add, color: Colors.white),
                   label: const Text('New Config', style: TextStyle(fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF152238),
+                    backgroundColor: const Color(0xFF0288D1),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                     shape: RoundedRectangleBorder(
@@ -273,7 +273,7 @@ class _PrepaymentForeclosureConfigScreenState extends State<PrepaymentForeclosur
             children: [
               Container(
                 decoration: const BoxDecoration(
-                  color: Color(0xFF152238),
+                  color: Color(0xFF0288D1),
                   borderRadius: BorderRadius.only(
                     topLeft: Radius.circular(16),
                     topRight: Radius.circular(16),
@@ -337,7 +337,7 @@ class _PrepaymentForeclosureConfigScreenState extends State<PrepaymentForeclosur
                                 ),
                                 ActionIconBtn(
                                   icon: Icons.edit_outlined,
-                                  color: const Color(0xFF152238),
+                                  color: const Color(0xFF0288D1),
                                   onTap: () {
                                     _loadRecord(item);
                                     setState(() {
@@ -398,7 +398,7 @@ class _PrepaymentForeclosureConfigScreenState extends State<PrepaymentForeclosur
                   children: [
                     const Text(
                       'Prepayment Details',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0A1628)),
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF01579B)),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -444,16 +444,6 @@ class _PrepaymentForeclosureConfigScreenState extends State<PrepaymentForeclosur
               spacing: 24,
               runSpacing: 8,
               children: [
-                SizedBox(
-                  width: 250,
-                  child: ProgramFormField(
-                    label: 'Organization Code',
-                    controller: _orgCodeController,
-                    prefixIcon: Icons.business,
-                    isRequired: true,
-                    isLocked: isEdit || isView,
-                  ),
-                ),
                 SizedBox(
                   width: 250,
                   child: ProgramDropdownField(
@@ -630,7 +620,6 @@ class _PrepaymentForeclosureConfigScreenState extends State<PrepaymentForeclosur
                   ),
                 ),
                 const SizedBox(height: 16),
-                _buildDeleteField('Org Code:', _selectedRecord?.orgCode ?? ''),
                 _buildDeleteField('Product Code:', _selectedRecord?.productCode ?? ''),
                 _buildDeleteField('Lock-In Months:', '${_selectedRecord?.lockInPeriodMonths} months'),
                 _buildDeleteField('Prepayment Fee:', '${_selectedRecord?.prepaymentPenaltyValue} (${_selectedRecord?.prepaymentPenaltyType})'),
@@ -684,7 +673,7 @@ class _PrepaymentForeclosureConfigScreenState extends State<PrepaymentForeclosur
             width: 180,
             child: Text(
               label,
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0A1628)),
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF01579B)),
             ),
           ),
           Text(value, style: const TextStyle(color: Colors.black87)),

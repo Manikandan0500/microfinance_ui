@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'mock_database.dart';
 import 'shared_widgets.dart';
+import 'models/region_master.dart';
+import 'services/region_api_service.dart';
 
+// --------------------------------------------------------------------------
+// Region Master Screen
+// --------------------------------------------------------------------------
 class RegionMasterScreen extends StatefulWidget {
   const RegionMasterScreen({super.key});
 
@@ -10,12 +15,16 @@ class RegionMasterScreen extends StatefulWidget {
 }
 
 class _RegionMasterScreenState extends State<RegionMasterScreen> {
-  final MockDatabase _db = MockDatabase();
+  // ---- State ----
   String _viewMode = 'GRID'; // GRID, VIEW, CREATE, EDIT, DELETE
   RegionMaster? _selectedRecord;
   String _searchQuery = '';
 
-  // Controllers
+  List<RegionMaster> _regions = [];
+  bool _isLoading = false;
+  String? _errorMessage;
+
+  // ---- Controllers ----
   final _formKey = GlobalKey<FormState>();
   final _orgCodeController = TextEditingController();
   final _regionCodeController = TextEditingController();
@@ -23,19 +32,17 @@ class _RegionMasterScreenState extends State<RegionMasterScreen> {
   final _stateController = TextEditingController();
   final _zoneController = TextEditingController();
   bool _statusValue = true;
-
-  // Delete confirm state
   bool _deleteConfirmed = false;
 
   @override
   void initState() {
     super.initState();
-    _db.addListener(_onDbChanged);
+    _orgCodeController.text = 'ORG01';
+    _loadRegions();
   }
 
   @override
   void dispose() {
-    _db.removeListener(_onDbChanged);
     _orgCodeController.dispose();
     _regionCodeController.dispose();
     _regionNameController.dispose();
@@ -44,9 +51,102 @@ class _RegionMasterScreenState extends State<RegionMasterScreen> {
     super.dispose();
   }
 
-  void _onDbChanged() {
-    if (mounted) setState(() {});
+  // --------------------------------------------------------------------------
+  // API Calls
+  // --------------------------------------------------------------------------
+
+  Future<void> _loadRegions() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    try {
+      final regions = await RegionApiService.getRegions();
+      setState(() {
+        _regions = regions;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = e.toString().replaceFirst('Exception: ', '');
+      });
+    }
   }
+
+  Future<void> _saveRecord() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final region = RegionMaster(
+      orgCode: _orgCodeController.text,
+      regionCode: _regionCodeController.text.trim().toUpperCase(),
+      regionName: _regionNameController.text.trim(),
+      state: _stateController.text.trim(),
+      zone: _zoneController.text.trim(),
+      status: _statusValue,
+    );
+
+    setState(() => _isLoading = true);
+
+    try {
+      if (_viewMode == 'CREATE') {
+        await RegionApiService.createRegion(region);
+        _showSnackbar('Region created successfully!', isError: false);
+      } else if (_viewMode == 'EDIT') {
+        await RegionApiService.updateRegion(region);
+        _showSnackbar('Region updated successfully!', isError: false);
+      }
+      await _loadRegions();
+      setState(() => _viewMode = 'GRID');
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showSnackbar(e.toString().replaceFirst('Exception: ', ''), isError: true);
+    }
+  }
+
+  Future<void> _confirmDelete() async {
+    if (_selectedRecord == null) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      await RegionApiService.deleteRegion(_selectedRecord!.regionCode);
+      _showSnackbar('Region deleted successfully!', isError: false);
+      await _loadRegions();
+      setState(() {
+        _viewMode = 'GRID';
+        _selectedRecord = null;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showSnackbar(e.toString().replaceFirst('Exception: ', ''), isError: true);
+    }
+  }
+
+  void _showSnackbar(String message, {required bool isError}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle_outline,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 10),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: isError ? Colors.red.shade700 : Colors.green.shade700,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  // --------------------------------------------------------------------------
+  // Form Helpers
+  // --------------------------------------------------------------------------
 
   void _resetForm() {
     _orgCodeController.text = 'ORG01';
@@ -68,38 +168,9 @@ class _RegionMasterScreenState extends State<RegionMasterScreen> {
     _deleteConfirmed = false;
   }
 
-  void _saveRecord() {
-    if (_formKey.currentState!.validate()) {
-      final record = RegionMaster(
-        orgCode: _orgCodeController.text,
-        regionCode: _regionCodeController.text,
-        regionName: _regionNameController.text,
-        state: _stateController.text,
-        zone: _zoneController.text,
-        status: _statusValue,
-      );
-
-      if (_viewMode == 'CREATE') {
-        _db.addRegion(record);
-      } else if (_viewMode == 'EDIT') {
-        _db.updateRegion(record);
-      }
-
-      setState(() {
-        _viewMode = 'GRID';
-      });
-    }
-  }
-
-  void _confirmDelete() {
-    if (_selectedRecord != null) {
-      _db.deleteRegion(_selectedRecord!.regionCode);
-      setState(() {
-        _viewMode = 'GRID';
-        _selectedRecord = null;
-      });
-    }
-  }
+  // --------------------------------------------------------------------------
+  // Build
+  // --------------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -108,13 +179,54 @@ class _RegionMasterScreenState extends State<RegionMasterScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Screen Title / Navigation Header
           _buildScreenHeader(),
           const SizedBox(height: 24),
-          // Main dynamic area
-          Expanded(
-            child: SingleChildScrollView(
-              child: _buildMainContent(),
+          if (_isLoading)
+            const Expanded(
+              child: Center(
+                child: CircularProgressIndicator(),
+              ),
+            )
+          else if (_errorMessage != null && _viewMode == 'GRID')
+            Expanded(child: _buildErrorState())
+          else
+            Expanded(
+              child: SingleChildScrollView(
+                child: _buildMainContent(),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.cloud_off_outlined, size: 72, color: Colors.grey),
+          const SizedBox(height: 16),
+          Text(
+            'Could not connect to server',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0A1628)),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _errorMessage ?? 'Unknown error',
+            style: TextStyle(color: Colors.grey.shade600),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: _loadRegions,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF152238),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
           ),
         ],
@@ -168,27 +280,33 @@ class _RegionMasterScreenState extends State<RegionMasterScreen> {
     }
   }
 
-  // --- Grid View Screen ---
+  // --------------------------------------------------------------------------
+  // Grid View
+  // --------------------------------------------------------------------------
   Widget _buildGrid() {
-    final filteredList = _db.regions.where((r) {
+    final filteredList = _regions.where((r) {
       final code = r.regionCode.toLowerCase();
       final name = r.regionName.toLowerCase();
       final state = r.state.toLowerCase();
       final zone = r.zone.toLowerCase();
       final query = _searchQuery.toLowerCase();
-      return code.contains(query) || name.contains(query) || state.contains(query) || zone.contains(query);
+      return query.isEmpty ||
+          code.contains(query) ||
+          name.contains(query) ||
+          state.contains(query) ||
+          zone.contains(query);
     }).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Grid Summary Card & Action Bar
+        // Action Bar
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             TotalRecordsCard(
-              count: _db.regions.length,
+              count: _regions.length,
               label: 'Total Regions',
               icon: Icons.location_city,
             ),
@@ -225,7 +343,18 @@ class _RegionMasterScreenState extends State<RegionMasterScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 8),
+                // Refresh button
+                IconButton(
+                  onPressed: _loadRegions,
+                  icon: const Icon(Icons.refresh),
+                  tooltip: 'Refresh',
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.grey.shade100,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 // Create Button
                 ElevatedButton.icon(
                   onPressed: () {
@@ -260,7 +389,7 @@ class _RegionMasterScreenState extends State<RegionMasterScreen> {
             border: Border.all(color: Colors.grey.shade200),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.02),
+                color: Colors.black.withValues(alpha: 0.02),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -281,12 +410,10 @@ class _RegionMasterScreenState extends State<RegionMasterScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 child: const Row(
                   children: [
-                    Expanded(child: Text('ORG CODE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
                     Expanded(child: Text('REGION CODE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
                     Expanded(flex: 2, child: Text('REGION NAME', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
                     Expanded(child: Text('STATE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
                     Expanded(child: Text('ZONE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
-                    Expanded(child: Text('STATUS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
                     SizedBox(width: 140, child: Text('ACTIONS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold), textAlign: TextAlign.center)),
                   ],
                 ),
@@ -311,12 +438,10 @@ class _RegionMasterScreenState extends State<RegionMasterScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       child: Row(
                         children: [
-                          Expanded(child: Text(item.orgCode)),
                           Expanded(child: Text(item.regionCode, style: const TextStyle(fontWeight: FontWeight.bold))),
                           Expanded(flex: 2, child: Text(item.regionName)),
                           Expanded(child: Text(item.state)),
                           Expanded(child: Text(item.zone)),
-                          Expanded(child: Align(alignment: Alignment.centerLeft, child: StatusPill(status: item.status))),
                           SizedBox(
                             width: 140,
                             child: Row(
@@ -370,7 +495,9 @@ class _RegionMasterScreenState extends State<RegionMasterScreen> {
     );
   }
 
-  // --- Create/Edit/View Form Screen ---
+  // --------------------------------------------------------------------------
+  // Create / Edit / View Form
+  // --------------------------------------------------------------------------
   Widget _buildForm() {
     final isView = _viewMode == 'VIEW';
     final isEdit = _viewMode == 'EDIT';
@@ -387,7 +514,6 @@ class _RegionMasterScreenState extends State<RegionMasterScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Detail Header
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -438,21 +564,11 @@ class _RegionMasterScreenState extends State<RegionMasterScreen> {
 
             if (isEdit) const YellowNoticeBar(),
 
-            // Form Inputs Grid
+            // Form Inputs
             Wrap(
               spacing: 24,
               runSpacing: 8,
               children: [
-                SizedBox(
-                  width: 250,
-                  child: ProgramFormField(
-                    label: 'Organization Code',
-                    controller: _orgCodeController,
-                    prefixIcon: Icons.business,
-                    isRequired: true,
-                    isLocked: isEdit || isView,
-                  ),
-                ),
                 SizedBox(
                   width: 250,
                   child: ProgramFormField(
@@ -509,7 +625,6 @@ class _RegionMasterScreenState extends State<RegionMasterScreen> {
             ),
             const SizedBox(height: 32),
 
-            // Form Buttons
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
@@ -538,7 +653,9 @@ class _RegionMasterScreenState extends State<RegionMasterScreen> {
     );
   }
 
-  // --- Delete Screen ---
+  // --------------------------------------------------------------------------
+  // Delete Screen
+  // --------------------------------------------------------------------------
   Widget _buildDeleteConfirmation() {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -553,7 +670,6 @@ class _RegionMasterScreenState extends State<RegionMasterScreen> {
           const RedDeleteBanner(),
           const SizedBox(height: 16),
 
-          // Record Details Display
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -575,7 +691,6 @@ class _RegionMasterScreenState extends State<RegionMasterScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                _buildDeleteField('Org Code:', _selectedRecord?.orgCode ?? ''),
                 _buildDeleteField('Region Code:', _selectedRecord?.regionCode ?? ''),
                 _buildDeleteField('Region Name:', _selectedRecord?.regionName ?? ''),
                 _buildDeleteField('State:', _selectedRecord?.state ?? ''),
@@ -585,7 +700,6 @@ class _RegionMasterScreenState extends State<RegionMasterScreen> {
           ),
           const SizedBox(height: 24),
 
-          // Warning check box
           DeleteConfirmationBox(
             checked: _deleteConfirmed,
             onChanged: (val) {
@@ -595,7 +709,6 @@ class _RegionMasterScreenState extends State<RegionMasterScreen> {
             },
           ),
 
-          // Actions
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [

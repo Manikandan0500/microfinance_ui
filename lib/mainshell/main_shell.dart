@@ -10,6 +10,9 @@ import '../programs/asset_classification_gl_map_screen.dart';
 import '../programs/prepayment_foreclosure_config_screen.dart';
 import '../programs/rate_revision_history_screen.dart';
 import '../programs/holiday_calendar_screen.dart';
+import '../programs/authorization_screen.dart';
+import '../programs/auth_config_screen.dart';
+
 
 // ── AM Masters Screens ──────────────────────────────────────────────────────
 import '../am_masters/screens/organizations_screen.dart';
@@ -260,6 +263,24 @@ class _MainShellState extends State<MainShell> {
                                       _buildSubMenuItem('Menu Master', Icons.menu_book_outlined),
                                     ],
                                   ),
+                                ),
+                              if (_isSidebarHovered)
+                                Theme(
+                                  data: Theme.of(context).copyWith(
+                                    dividerColor: Colors.transparent,
+                                  ),
+                                  child: ExpansionTile(
+                                    leading: const Icon(Icons.computer_outlined, color: Colors.white70),
+                                    title: const Text('System', style: TextStyle(color: Colors.white, fontSize: 14)),
+                                    iconColor: Colors.white,
+                                    collapsedIconColor: Colors.white70,
+                                    childrenPadding: const EdgeInsets.only(left: 12.0),
+                                    initiallyExpanded: true,
+                                    children: [
+                                      _buildSubMenuItem('Configuration', Icons.settings_applications_outlined),
+                                      _buildSubMenuItem('Authorization Queue', Icons.security_outlined),
+                                    ],
+                                  ),
                                 )
                               else ...[
                                 _buildMenuItem(
@@ -315,6 +336,68 @@ class _MainShellState extends State<MainShell> {
                                   title: 'Holiday Calendar',
                                   isSelected: _selectedPage == 'Holiday Calendar',
                                   onTap: () => setState(() => _selectedPage = 'Holiday Calendar'),
+                                ),
+                                // AM Masters (Collapsed)
+                                _buildMenuItem(
+                                  icon: Icons.apartment_outlined,
+                                  title: 'Organizations',
+                                  isSelected: _selectedPage == 'Organizations',
+                                  onTap: () => setState(() => _selectedPage = 'Organizations'),
+                                ),
+                                _buildMenuItem(
+                                  icon: Icons.account_balance_outlined,
+                                  title: 'Branches',
+                                  isSelected: _selectedPage == 'Branches',
+                                  onTap: () => setState(() => _selectedPage = 'Branches'),
+                                ),
+                                _buildMenuItem(
+                                  icon: Icons.inventory_2_outlined,
+                                  title: 'Products',
+                                  isSelected: _selectedPage == 'Products',
+                                  onTap: () => setState(() => _selectedPage = 'Products'),
+                                ),
+                                _buildMenuItem(
+                                  icon: Icons.link_outlined,
+                                  title: 'Product Mapping',
+                                  isSelected: _selectedPage == 'Product Mapping',
+                                  onTap: () => setState(() => _selectedPage = 'Product Mapping'),
+                                ),
+                                _buildMenuItem(
+                                  icon: Icons.group_outlined,
+                                  title: 'User Accounts',
+                                  isSelected: _selectedPage == 'User Accounts',
+                                  onTap: () => setState(() => _selectedPage = 'User Accounts'),
+                                ),
+                                _buildMenuItem(
+                                  icon: Icons.security_outlined,
+                                  title: 'User Product Mapping',
+                                  isSelected: _selectedPage == 'User Product Mapping',
+                                  onTap: () => setState(() => _selectedPage = 'User Product Mapping'),
+                                ),
+                                _buildMenuItem(
+                                  icon: Icons.view_module_outlined,
+                                  title: 'Modules',
+                                  isSelected: _selectedPage == 'Modules',
+                                  onTap: () => setState(() => _selectedPage = 'Modules'),
+                                ),
+                                _buildMenuItem(
+                                  icon: Icons.menu_book_outlined,
+                                  title: 'Menu Master',
+                                  isSelected: _selectedPage == 'Menu Master',
+                                  onTap: () => setState(() => _selectedPage = 'Menu Master'),
+                                ),
+                                // System (Collapsed)
+                                _buildMenuItem(
+                                  icon: Icons.settings_applications_outlined,
+                                  title: 'Configuration',
+                                  isSelected: _selectedPage == 'Configuration',
+                                  onTap: () => setState(() => _selectedPage = 'Configuration'),
+                                ),
+                                _buildMenuItem(
+                                  icon: Icons.security_outlined,
+                                  title: 'Authorization Queue',
+                                  isSelected: _selectedPage == 'Authorization Queue',
+                                  onTap: () => setState(() => _selectedPage = 'Authorization Queue'),
                                 ),
                               ],
                             ],
@@ -379,6 +462,12 @@ class _MainShellState extends State<MainShell> {
         return Modules();
       case 'Menu Master':
         return MenuMaster();
+      // ── System ────────────────────────────────────────────────────────────
+      case 'Configuration':
+        return const AuthConfigScreen();
+      case 'Authorization Queue':
+        return const AuthorizationScreen();
+
       // ── Dashboard ─────────────────────────────────────────────────────────
       case 'Dashboard':
       default:
@@ -422,6 +511,10 @@ class _MainShellState extends State<MainShell> {
                 _buildDashboardCard('Prepayment / Foreclosure Configuration', 'Penalty values and recalc methods for early payouts.', Icons.settings, _db.prepaymentConfigs.length),
                 _buildDashboardCard('Rate Revision History', 'Floating-rate benchmark revisions audit trail.', Icons.rate_review, _db.rateRevisions.length),
                 _buildDashboardCard('Holiday Calendar', 'Manage organization/branch holidays and shifting due dates.', Icons.calendar_month, _db.holidays.length),
+                // AM Masters / System
+                _buildDashboardCard('Authorization Queue', 'Review and approve/reject pending system authorizations.', Icons.verified_user, 0),
+                _buildDashboardCard('Organizations', 'Manage parent organization units.', Icons.apartment, 0),
+                _buildDashboardCard('User Accounts', 'Manage system users and access roles.', Icons.group, 0),
               ],
             ),
           ),
