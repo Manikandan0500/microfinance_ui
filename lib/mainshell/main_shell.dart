@@ -11,6 +11,17 @@ import '../programs/prepayment_foreclosure_config_screen.dart';
 import '../programs/rate_revision_history_screen.dart';
 import '../programs/holiday_calendar_screen.dart';
 
+// ── AM Masters Screens ──────────────────────────────────────────────────────
+import '../am_masters/screens/organizations_screen.dart';
+import '../am_masters/screens/branches_screen.dart';
+import '../am_masters/screens/products_screen.dart';
+import '../am_masters/screens/product_mapping_screen.dart';
+import '../am_masters/screens/user_accounts_screen.dart';
+import '../am_masters/screens/user_product_mapping_screen.dart';
+import '../am_masters/screens/modules_screen.dart';
+import '../am_masters/screens/menu_master_screen.dart';
+import '../am_masters/config/app_config.dart';
+
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
 
@@ -208,11 +219,11 @@ class _MainShellState extends State<MainShell> {
                                   ),
                                   child: ExpansionTile(
                                     leading: const Icon(Icons.folder_open, color: Colors.white70),
-                                    title: const Text('Masters', style: TextStyle(color: Colors.white, fontSize: 14)),
+                                    title: const Text('MF Masters', style: TextStyle(color: Colors.white, fontSize: 14)),
                                     iconColor: Colors.white,
                                     collapsedIconColor: Colors.white70,
                                     childrenPadding: const EdgeInsets.only(left: 12.0),
-                                    initiallyExpanded: true,
+                                    initiallyExpanded: false,
                                     children: [
                                       _buildSubMenuItem('Region Master', Icons.map_outlined),
                                       _buildSubMenuItem('Branch Region Map', Icons.account_tree_outlined),
@@ -223,6 +234,30 @@ class _MainShellState extends State<MainShell> {
                                       _buildSubMenuItem('Prepayment / Foreclosure Configuration', Icons.settings_outlined),
                                       _buildSubMenuItem('Rate Revision History', Icons.trending_up_outlined),
                                       _buildSubMenuItem('Holiday Calendar', Icons.calendar_month_outlined),
+                                    ],
+                                  ),
+                                ),
+                              if (_isSidebarHovered)
+                                Theme(
+                                  data: Theme.of(context).copyWith(
+                                    dividerColor: Colors.transparent,
+                                  ),
+                                  child: ExpansionTile(
+                                    leading: const Icon(Icons.admin_panel_settings_outlined, color: Colors.white70),
+                                    title: const Text('AM Masters', style: TextStyle(color: Colors.white, fontSize: 14)),
+                                    iconColor: Colors.white,
+                                    collapsedIconColor: Colors.white70,
+                                    childrenPadding: const EdgeInsets.only(left: 12.0),
+                                    initiallyExpanded: true,
+                                    children: [
+                                      _buildSubMenuItem('Organizations', Icons.apartment_outlined),
+                                      _buildSubMenuItem('Branches', Icons.account_balance_outlined),
+                                      _buildSubMenuItem('Products', Icons.inventory_2_outlined),
+                                      _buildSubMenuItem('Product Mapping', Icons.link_outlined),
+                                      _buildSubMenuItem('User Accounts', Icons.group_outlined),
+                                      _buildSubMenuItem('User Product Mapping', Icons.security_outlined),
+                                      _buildSubMenuItem('Modules', Icons.view_module_outlined),
+                                      _buildSubMenuItem('Menu Master', Icons.menu_book_outlined),
                                     ],
                                   ),
                                 )
@@ -308,6 +343,7 @@ class _MainShellState extends State<MainShell> {
 
   Widget _buildBody() {
     switch (_selectedPage) {
+      // ── MF Masters ────────────────────────────────────────────────────────
       case 'Region Master':
         return const RegionMasterScreen();
       case 'Branch Region Map':
@@ -326,6 +362,24 @@ class _MainShellState extends State<MainShell> {
         return const RateRevisionHistoryScreen();
       case 'Holiday Calendar':
         return const HolidayCalendarScreen();
+      // ── AM Masters ────────────────────────────────────────────────────────
+      case 'Organizations':
+        return const Organizations();
+      case 'Branches':
+        return const Branches();
+      case 'Products':
+        return const Products();
+      case 'Product Mapping':
+        return const ProductOrganization();
+      case 'User Accounts':
+        return Users();
+      case 'User Product Mapping':
+        return const UserAccess();
+      case 'Modules':
+        return Modules();
+      case 'Menu Master':
+        return MenuMaster();
+      // ── Dashboard ─────────────────────────────────────────────────────────
       case 'Dashboard':
       default:
         return _buildDashboard();
