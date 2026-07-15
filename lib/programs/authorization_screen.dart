@@ -3,6 +3,8 @@ import 'mock_database.dart';
 import 'shared_widgets.dart';
 import 'models/auth_models.dart';
 import 'services/auth_api_service.dart';
+import 'services/queue_api_service.dart';
+
 
 class AuthorizationScreen extends StatefulWidget {
   const AuthorizationScreen({super.key});
@@ -32,9 +34,9 @@ class _AuthorizationScreenState extends State<AuthorizationScreen> {
       _selectedRecord = null;
     });
     try {
-      final result = await AuthApiService.getAuthQueue();
+      final records = await QueueApiService.getAuthQueue();
       setState(() {
-        _queue = result?.items ?? [];
+        _queue = records;
         _isLoading = false;
       });
     } catch (e) {
@@ -45,15 +47,16 @@ class _AuthorizationScreenState extends State<AuthorizationScreen> {
     }
   }
 
+
   Future<void> _processRecord(bool approve) async {
     if (_selectedRecord == null) return;
     setState(() => _isLoading = true);
     try {
-      await AuthApiService.processAuth(
-        _selectedRecord!.authSl,
-        approve ? 'APPROVE' : 'REJECT',
-        1,
-        'admin',
+      await QueueApiService.processAuth(
+        authSl: _selectedRecord!.authSl,
+        action: approve ? '1' : '0',
+        level: 1,
+        user: 'admin',
       );
       _showSnackbar('Record ${approve ? 'approved' : 'rejected'} successfully.', isError: false);
       await _loadQueue();

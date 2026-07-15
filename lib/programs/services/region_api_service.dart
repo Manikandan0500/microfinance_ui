@@ -8,9 +8,10 @@ class RegionApiService {
 
   /// Fetch all regions for the default orgCode
   static Future<List<RegionMaster>> getRegions() async {
-    final response = await http.get(Uri.parse('$_baseUrl/getRegionData?orgCode=$_defaultOrgCode'));
+    final response = await http.get(Uri.parse('$_baseUrl/getRegionData/$_defaultOrgCode'));
     if (response.statusCode == 200) {
-      final List<dynamic> data = jsonDecode(response.body);
+      final Map<String, dynamic> body = jsonDecode(response.body);
+      final List<dynamic> data = body['data'] ?? [];
       return data.map((json) => _fromJson(json)).toList();
     }
     throw Exception('Failed to load regions: ${response.statusCode}');
@@ -60,9 +61,9 @@ class RegionApiService {
   static RegionMaster _fromJson(Map<String, dynamic> json) {
     final id = json['id'] as Map<String, dynamic>?;
     return RegionMaster(
-      orgCode: (id?['orgCode'] ?? 1).toString(),
-      regionCode: (id?['regionCode'] ?? json['regionCode'] ?? '') as String,
-      regionName: (json['regionName'] ?? '') as String,
+      orgCode: (id?['orgCode'] ?? json['orgcode'] ?? 101).toString(),
+      regionCode: (id?['regionCode'] ?? json['region_code'] ?? json['regionCode'] ?? '') as String,
+      regionName: (json['region_name'] ?? json['regionName'] ?? '') as String,
       state: (json['state'] ?? '') as String,
       zone: (json['zone'] ?? '') as String,
       status: true,
@@ -75,7 +76,7 @@ class RegionApiService {
         'orgCode': _defaultOrgCode,
         'regionCode': region.regionCode,
       },
-      'regionName': region.regionName,
+      'region_name': region.regionName,
       'state': region.state,
       'zone': region.zone,
     };

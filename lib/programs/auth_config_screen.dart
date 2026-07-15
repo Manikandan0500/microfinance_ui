@@ -17,6 +17,17 @@ class _AuthConfigScreenState extends State<AuthConfigScreen> {
   bool _isLoading = false;
   String? _errorMessage;
 
+  // Form State
+  bool _showForm = true;
+  final String _orgCode = '101 - BBOTS';
+  String? _selectedProgram;
+  bool _approvalReq = true;
+  bool _preApprove = false;
+  bool _postApprove = false;
+  bool _isTran = false;
+
+  final List<String> _programs = ['PROD-JLG', 'REGMAS', 'BRANCH-MST', 'USER-MST', 'LOAN-DISB'];
+
   @override
   void initState() {
     super.initState();
@@ -41,6 +52,44 @@ class _AuthConfigScreenState extends State<AuthConfigScreen> {
       });
     }
   }
+
+  Future<void> _submitForm() async {
+    if (_selectedProgram == null) {
+      _showSnackbar('Please select a Program Id', isError: true);
+      return;
+    }
+    setState(() => _isLoading = true);
+    try {
+      final config = Auth101Config(
+        id: _selectedProgram!,
+        name: _selectedProgram!,
+        approvalReq: _approvalReq,
+        preApproveProc: _preApprove,
+        postApproveProc: _postApprove,
+        isTran: _isTran,
+        levels: 1,
+        orgCode: 101,
+      );
+      await AuthApiService.saveAuthConfig(config);
+      _showSnackbar('Configuration saved successfully', isError: false);
+      _clearForm();
+      await _loadConfigs();
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showSnackbar(e.toString(), isError: true);
+    }
+  }
+
+  void _clearForm() {
+    setState(() {
+      _selectedProgram = null;
+      _approvalReq = true;
+      _preApprove = false;
+      _postApprove = false;
+      _isTran = false;
+    });
+  }
+
 
   void _showSnackbar(String message, {required bool isError}) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -99,7 +148,13 @@ class _AuthConfigScreenState extends State<AuthConfigScreen> {
           else
             Expanded(
               child: SingleChildScrollView(
-                child: _buildGrid(),
+                child: Column(
+                  children: [
+                    if (_showForm) _buildForm(),
+                    const SizedBox(height: 24),
+                    _buildGrid(),
+                  ],
+                ),
               ),
             ),
         ],
@@ -107,7 +162,178 @@ class _AuthConfigScreenState extends State<AuthConfigScreen> {
     );
   }
 
+  Widget _buildForm() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: const BoxDecoration(
+              color: Color(0xFF152238),
+              borderRadius: BorderRadius.only(topLeft: Radius.circular(8), topRight: Radius.circular(8)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('New AUTHCTL', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                IconButton(
+                  icon: const Icon(Icons.keyboard_arrow_up, color: Colors.white),
+                  onPressed: () => setState(() => _showForm = false),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Organisation Code *', style: TextStyle(color: Colors.black54, fontSize: 12, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            initialValue: _orgCode,
+                            enabled: false,
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: Colors.grey.shade100,
+                              prefixIcon: const Icon(Icons.apartment, size: 20),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 24),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Program Id *', style: TextStyle(color: Colors.black54, fontSize: 12, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 8),
+                          DropdownButtonFormField<String>(
+                            value: _selectedProgram,
+                            decoration: InputDecoration(
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            ),
+                            hint: const Text('Select Program'),
+                            items: _programs.map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
+                            onChanged: (val) => setState(() => _selectedProgram = val),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(child: _buildSwitch('Approval Required', _approvalReq, (val) => setState(() => _approvalReq = val))),
+                    const SizedBox(width: 24),
+                    Expanded(child: _buildSwitch('Pre Approval Required', _preApprove, (val) => setState(() => _preApprove = val))),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(child: _buildSwitch('Post Approval Required', _postApprove, (val) => setState(() => _postApprove = val))),
+                    const SizedBox(width: 24),
+                    Expanded(child: _buildSwitch('Transaction program', _isTran, (val) => setState(() => _isTran = val))),
+                  ],
+                ),
+                const SizedBox(height: 32),
+                const Divider(),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red.shade600,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      ),
+                      onPressed: _clearForm,
+                      icon: const Icon(Icons.cancel, size: 18),
+                      label: const Text('Cancel'),
+                    ),
+                    const SizedBox(width: 16),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black87,
+                        side: BorderSide(color: Colors.grey.shade300),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      ),
+                      onPressed: _clearForm,
+                      icon: const Icon(Icons.clear_all, size: 18),
+                      label: const Text('Clear'),
+                    ),
+                    const SizedBox(width: 16),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF242F50),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      ),
+                      onPressed: _submitForm,
+                      icon: const Icon(Icons.arrow_forward, size: 18),
+                      label: const Text('Submit'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSwitch(String label, bool value, ValueChanged<bool> onChanged) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(label, style: const TextStyle(color: Colors.black54, fontSize: 12, fontWeight: FontWeight.bold)),
+            const SizedBox(width: 4),
+            Icon(Icons.info_outline, size: 14, color: Colors.blue.shade300),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Switch(
+              value: value,
+              onChanged: onChanged,
+              activeColor: const Color(0xFF242F50),
+            ),
+            const SizedBox(width: 8),
+            Text(value ? 'Yes' : 'No', style: const TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _buildGrid() {
+
     final filteredList = _configs.where((c) {
       final query = _searchQuery.toLowerCase();
       return query.isEmpty ||
@@ -122,11 +348,18 @@ class _AuthConfigScreenState extends State<AuthConfigScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            TotalRecordsCard(
-              count: _configs.length,
-              label: 'Total Configs',
-              icon: Icons.settings,
-            ),
+            if (!_showForm)
+              StandardButton(
+                label: 'New CONFIG',
+                isPrimary: true,
+                onPressed: () => setState(() => _showForm = true),
+              )
+            else
+              TotalRecordsCard(
+                count: _configs.length,
+                label: 'Total Configs',
+                icon: Icons.settings,
+              ),
             Row(
               children: [
                 Container(
@@ -207,6 +440,7 @@ class _AuthConfigScreenState extends State<AuthConfigScreen> {
                     Expanded(child: Text('IS TRAN', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
                     Expanded(child: Text('APPROVAL REQ', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
                     Expanded(child: Text('LEVELS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+                    SizedBox(width: 80, child: Text('ACTIONS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold), textAlign: TextAlign.center)),
                   ],
                 ),
               ),
@@ -233,6 +467,28 @@ class _AuthConfigScreenState extends State<AuthConfigScreen> {
                           Expanded(child: Text(item.isTran ? 'Yes' : 'No')),
                           Expanded(child: Text(item.approvalReq ? 'Yes' : 'No')),
                           Expanded(child: Text(item.levels.toString())),
+                          SizedBox(
+                            width: 80,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                ActionIconBtn(
+                                  icon: Icons.edit_outlined,
+                                  color: Colors.blue.shade700,
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedProgram = item.id;
+                                      _approvalReq = item.approvalReq;
+                                      _preApprove = item.preApproveProc;
+                                      _postApprove = item.postApproveProc;
+                                      _isTran = item.isTran;
+                                      _showForm = true;
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                     );
