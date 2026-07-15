@@ -3,12 +3,12 @@ import 'package:http/http.dart' as http;
 import '../models/region_master.dart';
 
 class RegionApiService {
-  static const String _baseUrl = 'http://localhost:8085/api/regions';
-  static const int _defaultOrgCode = 1;
+  static const String _baseUrl = 'http://localhost:8085/api/master';
+  static const int _defaultOrgCode = 101;
 
   /// Fetch all regions for the default orgCode
   static Future<List<RegionMaster>> getRegions() async {
-    final response = await http.get(Uri.parse('$_baseUrl?orgCode=$_defaultOrgCode'));
+    final response = await http.get(Uri.parse('$_baseUrl/getRegionData?orgCode=$_defaultOrgCode'));
     if (response.statusCode == 200) {
       final List<dynamic> data = jsonDecode(response.body);
       return data.map((json) => _fromJson(json)).toList();
@@ -20,7 +20,7 @@ class RegionApiService {
   static Future<RegionMaster> createRegion(RegionMaster region) async {
     final body = jsonEncode(_toJson(region));
     final response = await http.post(
-      Uri.parse(_baseUrl),
+      Uri.parse('$_baseUrl/createRegion?orgCode=$_defaultOrgCode'),
       headers: {'Content-Type': 'application/json'},
       body: body,
     );
