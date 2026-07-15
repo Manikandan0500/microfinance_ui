@@ -29,10 +29,12 @@ class Auth101Config {
     this.orgCode,
   });
 
-  Map<String, dynamic> toMap() {
+  Map<String, dynamic> toJson() {
     return {
-      'programId': id,
-      'name': name,
+      'id': {
+        'orgCode': orgCode ?? 101,
+        'programId': id,
+      },
       'approvalReq': approvalReq ? 1 : 0,
       'preApproveProc': preApproveProc ? 1 : 0,
       'preExecMethod': preExecMethod,
@@ -41,12 +43,28 @@ class Auth101Config {
       'postExecMethod': postExecMethod,
       'postProcessName': postProcessName,
       'isTranPgm': isTran ? 1 : 0,
-      'isTran': isTran ? 1 : 0,
-      'levels': levels,
-      'orgCode': orgCode ?? 50,
     };
   }
+
+  factory Auth101Config.fromJson(Map<String, dynamic> json) {
+    Map<String, dynamic>? idMap = json['id'] as Map<String, dynamic>?;
+    return Auth101Config(
+      id: idMap != null ? idMap['programId'] as String : json['programId'] ?? '',
+      name: json['name'] ?? '', // Note: 'name' might not be in DB but useful in UI
+      approvalReq: (json['approvalReq'] == 1 || json['approvalReq'] == true),
+      preApproveProc: (json['preApproveProc'] == 1 || json['preApproveProc'] == true),
+      preExecMethod: json['preExecMethod'],
+      preProcessName: json['preProcessName'],
+      postApproveProc: (json['postApproveProc'] == 1 || json['postApproveProc'] == true),
+      postExecMethod: json['postExecMethod'],
+      postProcessName: json['postProcessName'],
+      isTran: (json['isTranPgm'] == 1 || json['isTranPgm'] == true || json['isTran'] == 1 || json['isTran'] == true),
+      levels: json['levels'] ?? 1,
+      orgCode: idMap != null ? idMap['orgCode'] as int? : json['orgCode'],
+    );
+  }
 }
+
 
 class QueueEntry {
   final String authsl;
