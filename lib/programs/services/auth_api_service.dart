@@ -23,7 +23,8 @@ class AuthApiService {
     try {
       final response = await http.get(Uri.parse('$baseUrl/getAuthConfigData/101'));
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
+        final Map<String, dynamic> body = jsonDecode(response.body);
+        final List<dynamic> data = body['data'] ?? [];
         final Map<String, Auth101Config> map = {};
         for (var item in data) {
           final cfg = Auth101Config.fromJson(item);

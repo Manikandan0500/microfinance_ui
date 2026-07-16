@@ -28,8 +28,15 @@ class RegionApiService {
     if (response.statusCode == 200 || response.statusCode == 201) {
       return _fromJson(jsonDecode(response.body));
     }
-    if (response.statusCode == 409) {
-      throw Exception('Region code already exists.');
+    if (response.statusCode == 400) {
+      try {
+        final Map<String, dynamic> errorBody = jsonDecode(response.body);
+        if (errorBody.containsKey('message')) {
+          throw Exception(errorBody['message']);
+        }
+      } catch (e) {
+        // Fallback if parsing fails
+      }
     }
     throw Exception('Failed to create region: ${response.statusCode}');
   }
@@ -79,6 +86,8 @@ class RegionApiService {
       'region_name': region.regionName,
       'state': region.state,
       'zone': region.zone,
+      'orgcode': _defaultOrgCode,
+      'region_code': region.regionCode,
     };
   }
 }

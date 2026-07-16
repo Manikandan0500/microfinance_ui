@@ -18,7 +18,7 @@ class _AuthConfigScreenState extends State<AuthConfigScreen> {
   String? _errorMessage;
 
   // Form State
-  bool _showForm = true;
+  bool _showForm = false;
   final String _orgCode = '101 - BBOTS';
   String? _selectedProgram;
   bool _approvalReq = true;
@@ -181,7 +181,7 @@ class _AuthConfigScreenState extends State<AuthConfigScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('New AUTHCTL', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                const Text('AUTH CONFIG', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 IconButton(
                   icon: const Icon(Icons.keyboard_arrow_up, color: Colors.white),
                   onPressed: () => setState(() => _showForm = false),

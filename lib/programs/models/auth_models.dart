@@ -43,6 +43,8 @@ class Auth101Config {
       'postExecMethod': postExecMethod,
       'postProcessName': postProcessName,
       'isTranPgm': isTran ? 1 : 0,
+      'orgCode': orgCode ?? 101,
+      'programId': id,
     };
   }
 
