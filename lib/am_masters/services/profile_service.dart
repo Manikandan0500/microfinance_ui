@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
@@ -86,19 +86,15 @@ class ProfileService {
   // }
 Future<User?> _fetchUserDetails(String userId, int orgCode) async {
   final url = Uri.parse(
-    '${AppConfig.instance.baseUrl}/user/get-user',
+    '${AppConfig.instance.baseUrl}/exchange/get-user?userCode=$userId&orgCode=$orgCode',
   );
  
   try {
     final headers = await _getHeaders();
  
-    final response = await http.post(
+    final response = await http.get(
       url,
       headers: headers,
-      body: jsonEncode({
-        'userScd': userId,
-        'orgCode': orgCode,
-      }),
     );
  
     if (response.statusCode == 200) {

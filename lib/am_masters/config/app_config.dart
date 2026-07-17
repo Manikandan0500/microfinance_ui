@@ -28,16 +28,16 @@ class AppConfig {
     } catch (_) {
       // Fallback to microfinance backend default
       data = {
-        'baseUrl': 'http://localhost:8083/mfs',
+        'baseUrl': 'http://localhost:8085',
         'connectUrl': '',
-        'productCode': 101,
+        'productCode': 12,
       };
     }
 
     _instance = AppConfig._(
-      baseUrl: data['baseUrl'] ?? 'http://localhost:8083/mfs',
+      baseUrl: data['baseUrl'] ?? 'http://localhost:8085',
       connectUrl: data['connectUrl'] ?? '',
-      productCode: data['productCode'] ?? 101,
+      productCode: data['productCode'] ?? 12,
     );
 
     return _instance!;

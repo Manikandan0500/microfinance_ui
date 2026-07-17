@@ -24,6 +24,7 @@ import '../am_masters/screens/user_product_mapping_screen.dart';
 import '../am_masters/screens/modules_screen.dart';
 import '../am_masters/screens/menu_master_screen.dart';
 import '../am_masters/config/app_config.dart';
+import '../Login/services/auth_service 4.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -148,8 +149,11 @@ class _MainShellState extends State<MainShell> {
                 ),
                 const SizedBox(width: 12),
                 IconButton(
-                  onPressed: () {
-                    // Logout
+                  onPressed: () async {
+                    await AuthService().logout();
+                    if (context.mounted) {
+                      Navigator.pushReplacementNamed(context, '/');
+                    }
                   },
                   icon: const Icon(Icons.logout, color: Colors.white70, size: 20),
                   tooltip: 'Logout',

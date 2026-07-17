@@ -1,1 +1,4 @@
-﻿{"baseUrl": "http://localhost:8083/mfs", "connectUrl": "", "productCode": 101}
+﻿{
+    "baseUrl": "http://localhost:8085/",
+    "productCode": 12
+}
