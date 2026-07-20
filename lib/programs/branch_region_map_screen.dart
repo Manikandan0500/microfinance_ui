@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
-import 'mock_database.dart';
+import 'models/branch_region_map.dart';
+import 'models/region_master.dart';
+import 'services/branch_region_map_api_service.dart';
+import 'services/region_api_service.dart';
 import 'shared_widgets.dart';
 
 class BranchRegionMapScreen extends StatefulWidget {
@@ -10,14 +13,17 @@ class BranchRegionMapScreen extends StatefulWidget {
 }
 
 class _BranchRegionMapScreenState extends State<BranchRegionMapScreen> {
-  final MockDatabase _db = MockDatabase();
   String _viewMode = 'GRID'; // GRID, VIEW, CREATE, EDIT, DELETE
   BranchRegionMap? _selectedRecord;
   String _searchQuery = '';
 
+  List<BranchRegionMap> _branchMaps = [];
+  List<RegionMaster> _regions = [];
+  bool _isLoading = true;
+
   // Controllers
   final _formKey = GlobalKey<FormState>();
-  final _orgCodeController = TextEditingController();
+  final _orgCodeController = TextEditingController(text: '101');
   final _branchCodeController = TextEditingController();
   String? _selectedRegionCode;
   bool _statusValue = true;
@@ -28,25 +34,40 @@ class _BranchRegionMapScreenState extends State<BranchRegionMapScreen> {
   @override
   void initState() {
     super.initState();
-    _db.addListener(_onDbChanged);
+    _fetchData();
+  }
+
+  Future<void> _fetchData() async {
+    setState(() => _isLoading = true);
+    try {
+      final regions = await RegionApiService.getRegions();
+      final branchMaps = await BranchRegionMapApiService.getMaps('101');
+      if (mounted) {
+        setState(() {
+          _regions = regions;
+          _branchMaps = branchMaps;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
   }
 
   @override
   void dispose() {
-    _db.removeListener(_onDbChanged);
     _orgCodeController.dispose();
     _branchCodeController.dispose();
     super.dispose();
   }
 
-  void _onDbChanged() {
-    if (mounted) setState(() {});
-  }
-
   void _resetForm() {
-    _orgCodeController.text = 'ORG01';
+    _orgCodeController.text = '101';
     _branchCodeController.clear();
-    _selectedRegionCode = _db.regions.isNotEmpty ? _db.regions.first.regionCode : null;
+    _selectedRegionCode = _regions.isNotEmpty ? _regions.first.regionCode : null;
     _statusValue = true;
     _deleteConfirmed = false;
   }
@@ -59,7 +80,7 @@ class _BranchRegionMapScreenState extends State<BranchRegionMapScreen> {
     _deleteConfirmed = false;
   }
 
-  void _saveRecord() {
+  Future<void> _saveRecord() async {
     if (_formKey.currentState!.validate()) {
       final record = BranchRegionMap(
         orgCode: _orgCodeController.text,
@@ -68,25 +89,47 @@ class _BranchRegionMapScreenState extends State<BranchRegionMapScreen> {
         status: _statusValue,
       );
 
-      if (_viewMode == 'CREATE') {
-        _db.addBranchMap(record);
-      } else if (_viewMode == 'EDIT') {
-        _db.updateBranchMap(record);
-      }
+      setState(() => _isLoading = true);
+      try {
+        if (_viewMode == 'CREATE') {
+          await BranchRegionMapApiService.createMap(record);
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Branch Region Map submitted for authorization.')));
+        } else if (_viewMode == 'EDIT') {
+          await BranchRegionMapApiService.updateMap(record);
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Branch Region Map update submitted for authorization.')));
+        }
 
-      setState(() {
-        _viewMode = 'GRID';
-      });
+        await _fetchData();
+        if (!mounted) return;
+        setState(() {
+          _viewMode = 'GRID';
+        });
+      } catch (e) {
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
     }
   }
 
-  void _confirmDelete() {
+  Future<void> _confirmDelete() async {
     if (_selectedRecord != null) {
-      _db.deleteBranchMap(_selectedRecord!.branchCode);
-      setState(() {
-        _viewMode = 'GRID';
-        _selectedRecord = null;
-      });
+      setState(() => _isLoading = true);
+      try {
+        await BranchRegionMapApiService.deleteMap(_selectedRecord!.branchCode);
+        await _fetchData();
+        if (!mounted) return;
+        setState(() {
+          _viewMode = 'GRID';
+          _selectedRecord = null;
+        });
+      } catch (e) {
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
     }
   }
 
@@ -156,7 +199,7 @@ class _BranchRegionMapScreenState extends State<BranchRegionMapScreen> {
   }
 
   Widget _buildGrid() {
-    final filteredList = _db.branchMaps.where((b) {
+    final filteredList = _branchMaps.where((b) {
       final bCode = b.branchCode.toLowerCase();
       final rCode = b.regionCode.toLowerCase();
       final query = _searchQuery.toLowerCase();
@@ -171,7 +214,7 @@ class _BranchRegionMapScreenState extends State<BranchRegionMapScreen> {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             TotalRecordsCard(
-              count: _db.branchMaps.length,
+              count: _branchMaps.length,
               label: 'Total Mappings',
               icon: Icons.map,
             ),
@@ -268,7 +311,12 @@ class _BranchRegionMapScreenState extends State<BranchRegionMapScreen> {
                 ),
               ),
 
-              if (filteredList.isEmpty)
+              if (_isLoading)
+                const Padding(
+                  padding: EdgeInsets.all(32.0),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (filteredList.isEmpty)
                 const Padding(
                   padding: EdgeInsets.all(32.0),
                   child: Center(child: Text('No records found', style: TextStyle(color: Colors.grey))),
@@ -346,7 +394,7 @@ class _BranchRegionMapScreenState extends State<BranchRegionMapScreen> {
     final isView = _viewMode == 'VIEW';
     final isEdit = _viewMode == 'EDIT';
 
-    final regionCodes = _db.regions.map((r) => r.regionCode).toList();
+    final regionCodes = _regions.map((r) => r.regionCode).toList();
 
     return Form(
       key: _formKey,
@@ -422,6 +470,12 @@ class _BranchRegionMapScreenState extends State<BranchRegionMapScreen> {
                     prefixIcon: Icons.store,
                     isRequired: true,
                     isLocked: isEdit || isView,
+                    keyboardType: TextInputType.number,
+                    validator: (val) {
+                      if (val == null || val.trim().isEmpty) return 'Required field';
+                      if (int.tryParse(val.trim()) == null) return 'Must be a valid number';
+                      return null;
+                    },
                   ),
                 ),
                 SizedBox(
