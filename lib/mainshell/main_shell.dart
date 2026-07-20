@@ -25,6 +25,7 @@ import '../am_masters/screens/modules_screen.dart';
 import '../am_masters/screens/menu_master_screen.dart';
 import '../am_masters/config/app_config.dart';
 import '../Login/services/auth_service 4.dart';
+import '../am_masters/models/user.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -36,7 +37,9 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   bool _isSidebarHovered = false;
   final GlobalKey _nineDotsKey = GlobalKey();
+  final GlobalKey _profileKey = GlobalKey();
   OverlayEntry? _overlayEntry;
+  OverlayEntry? _profileOverlayEntry;
   
   // Active navigation section
   String _selectedPage = 'Dashboard';
@@ -44,21 +47,194 @@ class _MainShellState extends State<MainShell> {
   // Database instance
   final MockDatabase _db = MockDatabase();
 
+  // Logged-in user
+  User? _currentUser;
+
   @override
   void initState() {
     super.initState();
     _db.addListener(_onDbChanged);
+    _currentUser = AuthService().currentUser;
   }
 
   @override
   void dispose() {
     _db.removeListener(_onDbChanged);
     _closeProductLauncher();
+    _closeProfileOverlay();
     super.dispose();
   }
 
   void _onDbChanged() {
     if (mounted) setState(() {});
+  }
+
+  // ── Profile overlay ────────────────────────────────────────────────────────
+  void _closeProfileOverlay() {
+    _profileOverlayEntry?.remove();
+    _profileOverlayEntry = null;
+  }
+
+  void _toggleProfileOverlay() {
+    if (_profileOverlayEntry != null) {
+      _closeProfileOverlay();
+      return;
+    }
+    final RenderBox renderBox =
+        _profileKey.currentContext!.findRenderObject() as RenderBox;
+    final offset = renderBox.localToGlobal(Offset.zero);
+    final size = renderBox.size;
+    final user = _currentUser;
+
+    _profileOverlayEntry = OverlayEntry(
+      builder: (ctx) => Stack(
+        children: [
+          // Dismiss on tap outside
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: _closeProfileOverlay,
+              behavior: HitTestBehavior.translucent,
+            ),
+          ),
+          Positioned(
+            top: offset.dy + size.height + 8,
+            right: MediaQuery.of(context).size.width -
+                offset.dx -
+                size.width,
+            child: Material(
+              elevation: 12,
+              borderRadius: BorderRadius.circular(16),
+              color: Colors.transparent,
+              child: Container(
+                width: 300,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0A1628),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.4),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Header band
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 16),
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF1E3A5F), Color(0xFF0A1628)],
+                        ),
+                        borderRadius:
+                            BorderRadius.vertical(top: Radius.circular(16)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CircleAvatar(
+                            radius: 28,
+                            backgroundColor: Colors.blueAccent,
+                            child: Text(
+                              _initials(user),
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            _fullName(user),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          if ((user?.title ?? '').isNotEmpty)
+                            Text(
+                              user!.title!,
+                              style: const TextStyle(
+                                  color: Colors.white60, fontSize: 12),
+                            ),
+                        ],
+                      ),
+                    ),
+                    // Detail rows
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 14),
+                      child: Column(
+                        children: [
+                          _profileRow(
+                              Icons.phone_outlined, 'Mobile',
+                              user?.mobile ?? '—'),
+                          _profileRow(
+                              Icons.email_outlined, 'Email',
+                              user?.email ?? '—'),
+                          _profileRow(
+                              Icons.corporate_fare_outlined, 'Org Code',
+                              user?.orgCode?.toString() ?? '—'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    Overlay.of(context).insert(_profileOverlayEntry!);
+  }
+
+  String _fullName(User? user) {
+    if (user == null) return 'User Profile';
+    final parts = [
+      user.fName ?? '',
+      user.mName ?? '',
+      user.lName ?? '',
+    ].where((p) => p.isNotEmpty).join(' ');
+    return parts.isNotEmpty ? parts : user.name ?? 'User Profile';
+  }
+
+  String _initials(User? user) {
+    final f = user?.fName ?? user?.name ?? '';
+    final l = user?.lName ?? '';
+    if (f.isEmpty && l.isEmpty) return 'UP';
+    return '${f.isNotEmpty ? f[0] : ''}${l.isNotEmpty ? l[0] : ''}'
+        .toUpperCase();
+  }
+
+  Widget _profileRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: Colors.blueAccent),
+          const SizedBox(width: 10),
+          Text('$label: ',
+              style: const TextStyle(
+                  color: Colors.white54, fontSize: 12)),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                  color: Colors.white, fontSize: 12,
+                  fontWeight: FontWeight.w600),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _toggleProductLauncher() {
@@ -127,19 +303,35 @@ class _MainShellState extends State<MainShell> {
                   ),
                 ),
                 const Spacer(),
-                const Text(
-                  'User Profile #1',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
+                const Spacer(),
+                // ── User profile section ──────────────────────────────────────────
+                GestureDetector(
+                  key: _profileKey,
+                  onTap: _toggleProfileOverlay,
+                  child: Row(
+                    children: [
+                      Text(
+                        _fullName(_currentUser),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      CircleAvatar(
+                        radius: 18,
+                        backgroundColor: Colors.blueAccent,
+                        child: Text(
+                          _initials(_currentUser),
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 12),
-                const CircleAvatar(
-                  radius: 18,
-                  backgroundColor: Colors.blueAccent,
-                  child: Text('UP', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
                 ),
                 const SizedBox(width: 12),
                 Container(

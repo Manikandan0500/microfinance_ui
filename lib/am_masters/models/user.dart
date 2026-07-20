@@ -1,4 +1,4 @@
-﻿class User {
+class User {
   final String id;
   final String email;
   final String? name;
@@ -17,6 +17,7 @@
   final String? lastSeen;
   final String? roleType;
   final String? picture;
+  final String? callcode;
   final List<Map<String, dynamic>>? products;
 
   User({
@@ -38,7 +39,8 @@
     this.lastSeen,
     this.roleType,
     this.products,
-    this.picture
+    this.picture,
+    this.callcode,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -85,7 +87,8 @@
       isOnline: json['isOnline'] is bool ? json['isOnline'] as bool : null,
       lastSeen: json['lastSeen'] as String?,
       roleType: (json['roleType'] ?? json['roletype'] ?? json['role_type'])?.toString(),
-      picture:json['picture'] as String?,
+      picture: json['picture'] as String?,
+      callcode: (json['callcode'] ?? json['callCode'] ?? json['call_code'])?.toString(),
       products: products,
     );
   }
@@ -109,7 +112,8 @@
       'isOnline': isOnline,
       'lastSeen': lastSeen,
       'roleType': roleType,
-      'picture':'picture',
+      'picture': picture,
+      'callcode': callcode,
       'products': products,
     };
   }
