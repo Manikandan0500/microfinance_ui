@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'mock_database.dart';
+import 'services/loan_product_api_service.dart';
+import 'models/loan_product_master.dart';
 import 'shared_widgets.dart';
+import '../am_masters/services/auth_service.dart';
 
 class LoanProductMasterScreen extends StatefulWidget {
   const LoanProductMasterScreen({super.key});
@@ -10,7 +12,9 @@ class LoanProductMasterScreen extends StatefulWidget {
 }
 
 class _LoanProductMasterScreenState extends State<LoanProductMasterScreen> {
-  final MockDatabase _db = MockDatabase();
+  List<LoanProductMaster> _loanProducts = [];
+  bool _isLoading = false;
+  String _currentOrgCode = '1';
   String _viewMode = 'GRID'; // GRID, VIEW, CREATE, EDIT, DELETE
   LoanProductMaster? _selectedRecord;
   String _searchQuery = '';
@@ -40,12 +44,34 @@ class _LoanProductMasterScreenState extends State<LoanProductMasterScreen> {
   @override
   void initState() {
     super.initState();
-    _db.addListener(_onDbChanged);
+    _initUserAndLoadProducts();
+  }
+
+  Future<void> _initUserAndLoadProducts() async {
+    final user = await AuthService().getUser();
+    if (user != null && user.orgCode != null) {
+      _currentOrgCode = user.orgCode.toString();
+    }
+    _resetForm();
+    await _loadProducts();
+  }
+
+  Future<void> _loadProducts() async {
+    setState(() => _isLoading = true);
+    try {
+      final products = await LoanProductApiService.getProducts(_currentOrgCode);
+      if (mounted) setState(() => _loanProducts = products);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
   void dispose() {
-    _db.removeListener(_onDbChanged);
     _orgCodeController.dispose();
     _productCodeController.dispose();
     _productNameController.dispose();
@@ -61,12 +87,10 @@ class _LoanProductMasterScreenState extends State<LoanProductMasterScreen> {
     super.dispose();
   }
 
-  void _onDbChanged() {
-    if (mounted) setState(() {});
-  }
+  // Removed _onDbChanged
 
   void _resetForm() {
-    _orgCodeController.text = 'ORG01';
+    _orgCodeController.text = _currentOrgCode;
     _productCodeController.clear();
     _productNameController.clear();
     _minAmountController.clear();
@@ -105,42 +129,71 @@ class _LoanProductMasterScreenState extends State<LoanProductMasterScreen> {
     _deleteConfirmed = false;
   }
 
-  void _saveRecord() {
+  Future<void> _saveRecord() async {
     if (_formKey.currentState!.validate()) {
-      final record = LoanProductMaster(
-        orgCode: _orgCodeController.text,
-        productCode: _productCodeController.text,
-        productName: _productNameController.text,
-        minAmount: double.tryParse(_minAmountController.text) ?? 0.0,
-        maxAmount: double.tryParse(_maxAmountController.text) ?? 0.0,
-        interestRate: double.tryParse(_interestRateController.text) ?? 0.0,
-        interestType: _interestType,
-        rateType: _rateType,
-        benchmarkRateCode: _benchmarkRateCodeController.text,
-        minTenureMonths: int.tryParse(_minTenureController.text) ?? 0,
-        maxTenureMonths: int.tryParse(_maxTenureController.text) ?? 0,
-        repayFrequency: _repayFrequency,
-        prinGl: _prinGlController.text,
-        intGl: _intGlController.text,
-        penalGl: _penalGlController.text,
-        productStatus: _productStatus,
-      );
+      setState(() => _isLoading = true);
+      try {
+        final record = LoanProductMaster(
+          orgCode: _orgCodeController.text,
+          productCode: _productCodeController.text,
+          productName: _productNameController.text,
+          minAmount: double.tryParse(_minAmountController.text) ?? 0.0,
+          maxAmount: double.tryParse(_maxAmountController.text) ?? 0.0,
+          interestRate: double.tryParse(_interestRateController.text) ?? 0.0,
+          interestType: _interestType,
+          rateType: _rateType,
+          benchmarkRateCode: _benchmarkRateCodeController.text,
+          minTenureMonths: int.tryParse(_minTenureController.text) ?? 0,
+          maxTenureMonths: int.tryParse(_maxTenureController.text) ?? 0,
+          repayFrequency: _repayFrequency,
+          prinGl: _prinGlController.text,
+          intGl: _intGlController.text,
+          penalGl: _penalGlController.text,
+          productStatus: _productStatus,
+        );
 
-      if (_viewMode == 'CREATE') {
-        _db.addLoanProduct(record);
-      } else if (_viewMode == 'EDIT') {
-        _db.updateLoanProduct(record);
+        if (_viewMode == 'CREATE') {
+          await LoanProductApiService.createProduct(record);
+          if (mounted) _showSnackbar('Product created successfully!', isError: false);
+        } else if (_viewMode == 'EDIT') {
+          await LoanProductApiService.updateProduct(record);
+          if (mounted) _showSnackbar('Product updated successfully!', isError: false);
+        }
+        await _loadProducts();
+        if (mounted) setState(() => _viewMode = 'GRID');
+      } catch (e) {
+        if (mounted) _showSnackbar(e.toString().replaceFirst('Exception: ', ''), isError: true);
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
       }
-
-      setState(() {
-        _viewMode = 'GRID';
-      });
     }
+  }
+
+  void _showSnackbar(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle_outline,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 10),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: isError ? Colors.red.shade700 : Colors.green.shade700,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
   }
 
   void _confirmDelete() {
     if (_selectedRecord != null) {
-      _db.deleteLoanProduct(_selectedRecord!.productCode);
+      // API does not support delete currently
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Delete not supported by API')));
       setState(() {
         _viewMode = 'GRID';
         _selectedRecord = null;
@@ -182,7 +235,7 @@ class _LoanProductMasterScreenState extends State<LoanProductMasterScreen> {
           style: const TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF01579B),
+            color: Color(0xFF0A1628),
           ),
         ),
         if (_viewMode != 'GRID')
@@ -214,12 +267,16 @@ class _LoanProductMasterScreenState extends State<LoanProductMasterScreen> {
   }
 
   Widget _buildGrid() {
-    final filteredList = _db.loanProducts.where((l) {
+    final filteredList = _loanProducts.where((l) {
       final code = l.productCode.toLowerCase();
       final name = l.productName.toLowerCase();
       final query = _searchQuery.toLowerCase();
       return code.contains(query) || name.contains(query);
     }).toList();
+
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -229,7 +286,7 @@ class _LoanProductMasterScreenState extends State<LoanProductMasterScreen> {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             TotalRecordsCard(
-              count: _db.loanProducts.length,
+              count: _loanProducts.length,
               label: 'Total Loan Products',
               icon: Icons.account_balance,
             ),
@@ -276,7 +333,7 @@ class _LoanProductMasterScreenState extends State<LoanProductMasterScreen> {
                   icon: const Icon(Icons.add, color: Colors.white),
                   label: const Text('New Product', style: TextStyle(fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0288D1),
+                    backgroundColor: const Color(0xFF152238),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                     shape: RoundedRectangleBorder(
@@ -309,7 +366,7 @@ class _LoanProductMasterScreenState extends State<LoanProductMasterScreen> {
             children: [
               Container(
                 decoration: const BoxDecoration(
-                  color: Color(0xFF0288D1),
+                  color: Color(0xFF152238),
                   borderRadius: BorderRadius.only(
                     topLeft: Radius.circular(16),
                     topRight: Radius.circular(16),
@@ -373,7 +430,7 @@ class _LoanProductMasterScreenState extends State<LoanProductMasterScreen> {
                                 ),
                                 ActionIconBtn(
                                   icon: Icons.edit_outlined,
-                                  color: const Color(0xFF0288D1),
+                                  color: const Color(0xFF152238),
                                   onTap: () {
                                     _loadRecord(item);
                                     setState(() {
@@ -432,7 +489,7 @@ class _LoanProductMasterScreenState extends State<LoanProductMasterScreen> {
                   children: [
                     const Text(
                       'Loan Product Details',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF01579B)),
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0A1628)),
                     ),
                     const SizedBox(height: 4),
                     Text(

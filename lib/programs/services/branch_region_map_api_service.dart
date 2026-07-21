@@ -1,27 +1,50 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/branch_region_map.dart';
+import '../../am_masters/config/app_config.dart';
+import '../../am_masters/services/auth_service.dart';
 
 class BranchRegionMapApiService {
-  static const String _baseUrl = 'http://localhost:8085/api/master';
+  static String get _baseUrl => '${AppConfig.instance.baseUrl}/api/master';
+  static final _authService = AuthService();
+
+  static Future<Map<String, String>> _getHeaders() async {
+    final token = await _authService.getToken();
+    return {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer ${token.replaceAll('"', '')}',
+    };
+  }
 
   static Future<List<BranchRegionMap>> getMaps(String orgCode) async {
-    final response = await http.get(Uri.parse('$_baseUrl/getBranchRegionMapData/$orgCode'));
+    final headers = await _getHeaders();
+    final response = await http.get(Uri.parse('$_baseUrl/getBranchRegionMapData/$orgCode'), headers: headers);
     if (response.statusCode == 200) {
-      final List<dynamic> data = jsonDecode(response.body);
+      final dynamic decoded = jsonDecode(response.body);
+      List<dynamic> data = [];
+      if (decoded is List) {
+        data = decoded;
+      } else if (decoded is Map && decoded.containsKey('data')) {
+        data = decoded['data'] as List<dynamic>? ?? [];
+      }
       return data.map((json) => _fromJson(json)).toList();
     }
     throw Exception('Failed to load branch-region maps: ${response.statusCode}');
   }
 
   static Future<BranchRegionMap> createMap(BranchRegionMap map) async {
+    final headers = await _getHeaders();
     final response = await http.post(
       Uri.parse('$_baseUrl/createBranchRegionMap'),
-      headers: {'Content-Type': 'application/json'},
+      headers: headers,
       body: jsonEncode(_toJson(map)),
     );
     if (response.statusCode == 200 || response.statusCode == 201) {
-      return _fromJson(jsonDecode(response.body));
+      final dynamic decoded = jsonDecode(response.body);
+      final Map<String, dynamic> data = (decoded is Map && decoded.containsKey('data')) 
+          ? (decoded['data'] as Map<String, dynamic>) 
+          : (decoded as Map<String, dynamic>);
+      return _fromJson(data);
     }
     String errorMsg = 'Failed to map branch to region: ${response.statusCode}';
     try {
@@ -32,13 +55,18 @@ class BranchRegionMapApiService {
   }
 
   static Future<BranchRegionMap> updateMap(BranchRegionMap map) async {
+    final headers = await _getHeaders();
     final response = await http.put(
       Uri.parse('$_baseUrl/updateBranchRegionMap'),
-      headers: {'Content-Type': 'application/json'},
+      headers: headers,
       body: jsonEncode(_toJson(map)),
     );
     if (response.statusCode == 200 || response.statusCode == 201) {
-      return _fromJson(jsonDecode(response.body));
+      final dynamic decoded = jsonDecode(response.body);
+      final Map<String, dynamic> data = (decoded is Map && decoded.containsKey('data')) 
+          ? (decoded['data'] as Map<String, dynamic>) 
+          : (decoded as Map<String, dynamic>);
+      return _fromJson(data);
     }
     String errorMsg = 'Failed to update branch map: ${response.statusCode}';
     try {

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'mock_database.dart';
+import 'services/penalty_rate_api_service.dart';
+import 'models/penalty_rate_history.dart';
 import 'shared_widgets.dart';
+import '../am_masters/services/auth_service.dart';
 
 class PenaltyRateHistoryScreen extends StatefulWidget {
   const PenaltyRateHistoryScreen({super.key});
@@ -10,7 +12,9 @@ class PenaltyRateHistoryScreen extends StatefulWidget {
 }
 
 class _PenaltyRateHistoryScreenState extends State<PenaltyRateHistoryScreen> {
-  final MockDatabase _db = MockDatabase();
+  List<PenaltyRateHistory> _penaltyRates = [];
+  bool _isLoading = false;
+  String _currentOrgCode = '1';
   String _viewMode = 'GRID'; // GRID, VIEW, CREATE, EDIT, DELETE
   PenaltyRateHistory? _selectedRecord;
   String _searchQuery = '';
@@ -21,7 +25,7 @@ class _PenaltyRateHistoryScreenState extends State<PenaltyRateHistoryScreen> {
   String? _selectedProductCode;
   String? _selectedDelinquencyCode;
   DateTime _selectedEffDate = DateTime.now();
-  String _penaltyType = 'Percentage'; // Percentage, Fixed
+  String _penaltyType = 'Percentage'; // Percentage, Fixed Amount
   final _penaltyValueController = TextEditingController();
   bool _rateStatus = true;
 
@@ -31,38 +35,48 @@ class _PenaltyRateHistoryScreenState extends State<PenaltyRateHistoryScreen> {
   @override
   void initState() {
     super.initState();
-    _db.addListener(_onDbChanged);
+    _initUserAndLoadRates();
+  }
+
+  Future<void> _initUserAndLoadRates() async {
+    final user = await AuthService().getUser();
+    if (user != null && user.orgCode != null) {
+      _currentOrgCode = user.orgCode.toString();
+    }
+    _resetForm();
+    await _loadRates();
+  }
+
+  Future<void> _loadRates() async {
+    setState(() => _isLoading = true);
+    try {
+      final rates = await PenaltyRateApiService.getRates(_currentOrgCode);
+      if (mounted) setState(() => _penaltyRates = rates);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
   void dispose() {
-    _db.removeListener(_onDbChanged);
     _orgCodeController.dispose();
     _penaltyValueController.dispose();
     super.dispose();
   }
 
-  void _onDbChanged() {
-    if (mounted) setState(() {});
-  }
-
   void _resetForm() {
-    _orgCodeController.text = 'ORG01';
-    _selectedProductCode = _db.loanProducts.isNotEmpty ? _db.loanProducts.first.productCode : null;
-    _updateDelinquencyDropdown();
+    _orgCodeController.text = _currentOrgCode;
+    _selectedProductCode = null;
+    _selectedDelinquencyCode = null;
     _selectedEffDate = DateTime.now();
     _penaltyType = 'Percentage';
     _penaltyValueController.clear();
     _rateStatus = true;
     _deleteConfirmed = false;
-  }
-
-  void _updateDelinquencyDropdown() {
-    final filteredBuckets = _db.delinquencyBuckets
-        .where((b) => b.productCode == _selectedProductCode)
-        .map((b) => b.delinquencyCode)
-        .toList();
-    _selectedDelinquencyCode = filteredBuckets.isNotEmpty ? filteredBuckets.first : null;
   }
 
   void _loadRecord(PenaltyRateHistory record) {
@@ -76,37 +90,62 @@ class _PenaltyRateHistoryScreenState extends State<PenaltyRateHistoryScreen> {
     _deleteConfirmed = false;
   }
 
-  void _saveRecord() {
+  Future<void> _saveRecord() async {
     if (_formKey.currentState!.validate()) {
-      final record = PenaltyRateHistory(
-        orgCode: _orgCodeController.text,
-        productCode: _selectedProductCode ?? '',
-        delinquencyCode: _selectedDelinquencyCode ?? '',
-        effDate: _selectedEffDate,
-        penaltyType: _penaltyType,
-        penaltyValue: double.tryParse(_penaltyValueController.text) ?? 0.0,
-        rateStatus: _rateStatus,
-      );
+      setState(() => _isLoading = true);
+      try {
+        final record = PenaltyRateHistory(
+          orgCode: _orgCodeController.text,
+          productCode: _selectedProductCode ?? '',
+          delinquencyCode: _selectedDelinquencyCode ?? '',
+          effDate: _selectedEffDate,
+          penaltyType: _penaltyType,
+          penaltyValue: double.tryParse(_penaltyValueController.text) ?? 0.0,
+          rateStatus: _rateStatus,
+        );
 
-      if (_viewMode == 'CREATE') {
-        _db.addPenaltyRate(record);
-      } else if (_viewMode == 'EDIT') {
-        _db.updatePenaltyRate(record);
+        if (_viewMode == 'CREATE') {
+          await PenaltyRateApiService.createRate(record);
+          if (mounted) _showSnackbar('Rate created successfully!');
+        } else if (_viewMode == 'EDIT') {
+          await PenaltyRateApiService.updateRate(record);
+          if (mounted) _showSnackbar('Rate updated successfully!');
+        }
+        
+        await _loadRates();
+        if (mounted) setState(() => _viewMode = 'GRID');
+      } catch (e) {
+        if (mounted) _showSnackbar(e.toString().replaceFirst('Exception: ', ''), isError: true);
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
       }
-
-      setState(() {
-        _viewMode = 'GRID';
-      });
     }
+  }
+
+  void _showSnackbar(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle_outline,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 10),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: isError ? Colors.red.shade700 : Colors.green.shade700,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
   }
 
   void _confirmDelete() {
     if (_selectedRecord != null) {
-      _db.deletePenaltyRate(
-        _selectedRecord!.productCode,
-        _selectedRecord!.delinquencyCode,
-        _selectedRecord!.effDate,
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Delete not supported by API')));
       setState(() {
         _viewMode = 'GRID';
         _selectedRecord = null;
@@ -118,7 +157,7 @@ class _PenaltyRateHistoryScreenState extends State<PenaltyRateHistoryScreen> {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(24.0),
-      child: Column(
+      child: _isLoading ? const Center(child: CircularProgressIndicator()) : Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildScreenHeader(),
@@ -180,12 +219,11 @@ class _PenaltyRateHistoryScreenState extends State<PenaltyRateHistoryScreen> {
   }
 
   Widget _buildGrid() {
-    final filteredList = _db.penaltyRates.where((p) {
-      final prod = p.productCode.toLowerCase();
-      final del = p.delinquencyCode.toLowerCase();
-      final type = p.penaltyType.toLowerCase();
+    final filteredList = _penaltyRates.where((r) {
+      final prod = r.productCode.toLowerCase();
+      final delinq = r.delinquencyCode.toLowerCase();
       final query = _searchQuery.toLowerCase();
-      return prod.contains(query) || del.contains(query) || type.contains(query);
+      return prod.contains(query) || delinq.contains(query);
     }).toList();
 
     return Column(
@@ -196,9 +234,9 @@ class _PenaltyRateHistoryScreenState extends State<PenaltyRateHistoryScreen> {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             TotalRecordsCard(
-              count: _db.penaltyRates.length,
-              label: 'Total Rate Records',
-              icon: Icons.history,
+              count: _penaltyRates.length,
+              label: 'Total Penalty Rates',
+              icon: Icons.gavel,
             ),
             Row(
               children: [
@@ -224,7 +262,7 @@ class _PenaltyRateHistoryScreenState extends State<PenaltyRateHistoryScreen> {
                           },
                           decoration: const InputDecoration(
                             border: InputBorder.none,
-                            hintText: 'Search penalty rates...',
+                            hintText: 'Search...',
                             isDense: true,
                           ),
                         ),
@@ -256,20 +294,12 @@ class _PenaltyRateHistoryScreenState extends State<PenaltyRateHistoryScreen> {
           ],
         ),
         const SizedBox(height: 24),
-
         Container(
           width: double.infinity,
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: Colors.grey.shade200),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.02),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -277,96 +307,67 @@ class _PenaltyRateHistoryScreenState extends State<PenaltyRateHistoryScreen> {
               Container(
                 decoration: const BoxDecoration(
                   color: Color(0xFF0288D1),
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(16),
-                    topRight: Radius.circular(16),
-                  ),
+                  borderRadius: BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 child: const Row(
                   children: [
-                    Expanded(child: Text('PRODUCT CODE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
-                    Expanded(child: Text('DELINQUENCY BUCKET', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
-                    Expanded(child: Text('EFFECTIVE DATE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
-                    Expanded(child: Text('PENALTY TYPE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
-                    Expanded(child: Text('PENALTY VALUE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+                    Expanded(child: Text('PRODUCT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+                    Expanded(child: Text('DELINQUENCY', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+                    Expanded(child: Text('DATE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+                    Expanded(child: Text('TYPE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+                    Expanded(child: Text('VALUE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
                     Expanded(child: Text('STATUS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
-                    SizedBox(width: 140, child: Text('ACTIONS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold), textAlign: TextAlign.center)),
+                    SizedBox(width: 100, child: Text('ACTIONS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold), textAlign: TextAlign.center)),
                   ],
                 ),
               ),
-
               if (filteredList.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(32.0),
-                  child: Center(child: Text('No records found', style: TextStyle(color: Colors.grey))),
-                )
-              else
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: filteredList.length,
-                  itemBuilder: (context, idx) {
-                    final item = filteredList[idx];
-                    final isEven = idx % 2 == 0;
-                    final dateStr = '${item.effDate.day.toString().padLeft(2, '0')}-${item.effDate.month.toString().padLeft(2, '0')}-${item.effDate.year}';
-                    return Container(
-                      color: isEven ? Colors.white : const Color(0xFFF8F9FA),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                const Padding(padding: EdgeInsets.all(32), child: Center(child: Text('No records found'))),
+              ...filteredList.map((item) => Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.shade200))),
+                child: Row(
+                  children: [
+                    Expanded(child: Text(item.productCode)),
+                    Expanded(child: Text(item.delinquencyCode)),
+                    Expanded(child: Text('${item.effDate.day}-${item.effDate.month}-${item.effDate.year}')),
+                    Expanded(child: Text(item.penaltyType)),
+                    Expanded(child: Text(item.penaltyValue.toString())),
+                    Expanded(child: StatusPill(status: item.rateStatus)),
+                    SizedBox(
+                      width: 100,
                       child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Expanded(child: Text(item.productCode)),
-                          Expanded(child: Text(item.delinquencyCode, style: const TextStyle(fontWeight: FontWeight.bold))),
-                          Expanded(child: Text(dateStr)),
-                          Expanded(child: Text(item.penaltyType)),
-                          Expanded(child: Text(item.penaltyType == 'Percentage' ? '${item.penaltyValue}%' : '₹${item.penaltyValue}')),
-                          Expanded(child: Align(alignment: Alignment.centerLeft, child: StatusPill(status: item.rateStatus))),
-                          SizedBox(
-                            width: 140,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                ActionIconBtn(
-                                  icon: Icons.visibility_outlined,
-                                  color: Colors.grey,
-                                  onTap: () {
-                                    _loadRecord(item);
-                                    setState(() {
-                                      _viewMode = 'VIEW';
-                                      _selectedRecord = item;
-                                    });
-                                  },
-                                ),
-                                ActionIconBtn(
-                                  icon: Icons.edit_outlined,
-                                  color: const Color(0xFF0288D1),
-                                  onTap: () {
-                                    _loadRecord(item);
-                                    setState(() {
-                                      _viewMode = 'EDIT';
-                                      _selectedRecord = item;
-                                    });
-                                  },
-                                ),
-                                ActionIconBtn(
-                                  icon: Icons.delete_outline,
-                                  color: Colors.red,
-                                  onTap: () {
-                                    _loadRecord(item);
-                                    setState(() {
-                                      _viewMode = 'DELETE';
-                                      _selectedRecord = item;
-                                    });
-                                  },
-                                ),
-                              ],
-                            ),
+                          ActionIconBtn(
+                            icon: Icons.visibility_outlined,
+                            color: Colors.blue,
+                            onTap: () {
+                              _loadRecord(item);
+                              setState(() {
+                                _viewMode = 'VIEW';
+                                _selectedRecord = item;
+                              });
+                            },
+                          ),
+                          ActionIconBtn(
+                            icon: Icons.edit_outlined,
+                            color: Colors.orange,
+                            onTap: () {
+                              _loadRecord(item);
+                              setState(() {
+                                _viewMode = 'EDIT';
+                                _selectedRecord = item;
+                              });
+                            },
                           ),
                         ],
                       ),
-                    );
-                  },
+                    ),
+                  ],
                 ),
+              )),
             ],
           ),
         ),
@@ -377,12 +378,6 @@ class _PenaltyRateHistoryScreenState extends State<PenaltyRateHistoryScreen> {
   Widget _buildForm() {
     final isView = _viewMode == 'VIEW';
     final isEdit = _viewMode == 'EDIT';
-
-    final productCodes = _db.loanProducts.map((p) => p.productCode).toList();
-    final delinquencyCodes = _db.delinquencyBuckets
-        .where((b) => b.productCode == _selectedProductCode)
-        .map((b) => b.delinquencyCode)
-        .toList();
 
     return Form(
       key: _formKey,
@@ -452,35 +447,24 @@ class _PenaltyRateHistoryScreenState extends State<PenaltyRateHistoryScreen> {
               children: [
                 SizedBox(
                   width: 250,
-                  child: ProgramDropdownField(
+                  child: ProgramFormField(
                     label: 'Product Code',
-                    value: _selectedProductCode,
-                    items: productCodes,
+                    controller: TextEditingController(text: _selectedProductCode)..addListener(() { _selectedProductCode = _selectedProductCode; }),
                     prefixIcon: Icons.shopping_basket,
                     isRequired: true,
                     isLocked: isEdit || isView,
-                    onChanged: (val) {
-                      setState(() {
-                        _selectedProductCode = val;
-                        _updateDelinquencyDropdown();
-                      });
-                    },
+                    onChanged: (val) { _selectedProductCode = val; },
                   ),
                 ),
                 SizedBox(
                   width: 250,
-                  child: ProgramDropdownField(
-                    label: 'Delinquency Bucket',
-                    value: _selectedDelinquencyCode,
-                    items: delinquencyCodes,
+                  child: ProgramFormField(
+                    label: 'Delinquency Code',
+                    controller: TextEditingController(text: _selectedDelinquencyCode)..addListener(() { _selectedDelinquencyCode = _selectedDelinquencyCode; }),
                     prefixIcon: Icons.warning_amber_rounded,
                     isRequired: true,
                     isLocked: isEdit || isView,
-                    onChanged: (val) {
-                      setState(() {
-                        _selectedDelinquencyCode = val;
-                      });
-                    },
+                    onChanged: (val) { _selectedDelinquencyCode = val; },
                   ),
                 ),
                 SizedBox(
@@ -610,7 +594,7 @@ class _PenaltyRateHistoryScreenState extends State<PenaltyRateHistoryScreen> {
                 _buildDeleteField('Product Code:', _selectedRecord?.productCode ?? ''),
                 _buildDeleteField('Delinquency Code:', _selectedRecord?.delinquencyCode ?? ''),
                 _buildDeleteField('Effective Date:', dateStr),
-                _buildDeleteField('Penalty Rate:', _selectedRecord?.penaltyType == 'Percentage' ? '${_selectedRecord?.penaltyValue}%' : '₹${_selectedRecord?.penaltyValue}'),
+                _buildDeleteField('Penalty Rate:', _selectedRecord?.penaltyType == 'Percentage' ? '${_selectedRecord?.penaltyValue}%' : 'Rs. ${_selectedRecord?.penaltyValue}'),
               ],
             ),
           ),

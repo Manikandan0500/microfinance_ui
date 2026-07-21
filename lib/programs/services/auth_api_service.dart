@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/auth_models.dart';
 import '../mock_database.dart';
+import '../../am_masters/config/app_config.dart';
+import '../../am_masters/services/auth_service.dart';
 
 class PaginatedResult<T> {
   final List<T> items;
@@ -18,13 +20,30 @@ class PaginatedResult<T> {
 }
 
 class AuthApiService {
-  static const String baseUrl = 'http://localhost:8085/api/master';
+  static String get baseUrl => '${AppConfig.instance.baseUrl}/api/master';
+  static final _authService = AuthService();
+
+  static Future<Map<String, String>> _getHeaders() async {
+    final token = await _authService.getToken();
+    return {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer ${token.replaceAll('"', '')}',
+    };
+  }
+
   static Future<Map<String, Auth101Config>> getAuthConfigs() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/getAuthConfigData/101'));
+      final headers = await _getHeaders();
+      final response = await http.get(Uri.parse('$baseUrl/getAuthConfigData/101'), headers: headers);
       if (response.statusCode == 200) {
-        final Map<String, dynamic> body = jsonDecode(response.body);
-        final List<dynamic> data = body['data'] ?? [];
+        final dynamic decoded = jsonDecode(response.body);
+        List<dynamic> data = [];
+        if (decoded is List) {
+          data = decoded;
+        } else if (decoded is Map && decoded.containsKey('data')) {
+          data = decoded['data'] as List<dynamic>? ?? [];
+        }
+        
         final Map<String, Auth101Config> map = {};
         for (var item in data) {
           final cfg = Auth101Config.fromJson(item);
@@ -45,15 +64,16 @@ class AuthApiService {
 
   static Future<bool> saveAuthConfig(Auth101Config config) async {
     try {
+      final headers = await _getHeaders();
       final response = await http.post(
         Uri.parse('$baseUrl/authConfig'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
         body: jsonEncode(config.toJson()),
       );
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 || response.statusCode == 201) {
         return true;
       } else {
-        throw Exception('Failed to save configuration');
+        throw Exception('Failed to save configuration: ${response.statusCode}');
       }
     } catch (e) {
       print('Error saving auth config: $e');

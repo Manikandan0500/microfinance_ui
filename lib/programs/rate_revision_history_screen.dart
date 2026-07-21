@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'mock_database.dart';
+import 'services/rate_revision_api_service.dart';
+import 'models/rate_revision_history.dart';
 import 'shared_widgets.dart';
+import '../am_masters/services/auth_service.dart';
 
 class RateRevisionHistoryScreen extends StatefulWidget {
   const RateRevisionHistoryScreen({super.key});
@@ -10,7 +12,9 @@ class RateRevisionHistoryScreen extends StatefulWidget {
 }
 
 class _RateRevisionHistoryScreenState extends State<RateRevisionHistoryScreen> {
-  final MockDatabase _db = MockDatabase();
+  List<RateRevisionHistory> _rateRevisions = [];
+  bool _isLoading = false;
+  String _currentOrgCode = '1';
   String _viewMode = 'GRID'; // GRID, VIEW, CREATE, EDIT, DELETE
   RateRevisionHistory? _selectedRecord;
   String _searchQuery = '';
@@ -32,12 +36,34 @@ class _RateRevisionHistoryScreenState extends State<RateRevisionHistoryScreen> {
   @override
   void initState() {
     super.initState();
-    _db.addListener(_onDbChanged);
+    _initUserAndLoadRevisions();
+  }
+
+  Future<void> _initUserAndLoadRevisions() async {
+    final user = await AuthService().getUser();
+    if (user != null && user.orgCode != null) {
+      _currentOrgCode = user.orgCode.toString();
+    }
+    _resetForm();
+    await _loadRevisions();
+  }
+
+  Future<void> _loadRevisions() async {
+    setState(() => _isLoading = true);
+    try {
+      final revisions = await RateRevisionApiService.getRevisions(_currentOrgCode);
+      if (mounted) setState(() => _rateRevisions = revisions);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
   void dispose() {
-    _db.removeListener(_onDbChanged);
     _orgCodeController.dispose();
     _revisedRateController.dispose();
     _benchmarkRateCodeController.dispose();
@@ -46,13 +72,9 @@ class _RateRevisionHistoryScreenState extends State<RateRevisionHistoryScreen> {
     super.dispose();
   }
 
-  void _onDbChanged() {
-    if (mounted) setState(() {});
-  }
-
   void _resetForm() {
-    _orgCodeController.text = 'ORG01';
-    _selectedProductCode = _db.loanProducts.isNotEmpty ? _db.loanProducts.first.productCode : null;
+    _orgCodeController.text = _currentOrgCode;
+    _selectedProductCode = null;
     _selectedEffDate = DateTime.now();
     _revisedRateController.clear();
     _benchmarkRateCodeController.text = 'MCLR-6M';
@@ -74,34 +96,63 @@ class _RateRevisionHistoryScreenState extends State<RateRevisionHistoryScreen> {
     _deleteConfirmed = false;
   }
 
-  void _saveRecord() {
+  Future<void> _saveRecord() async {
     if (_formKey.currentState!.validate()) {
-      final record = RateRevisionHistory(
-        orgCode: _orgCodeController.text,
-        productCode: _selectedProductCode ?? '',
-        effDate: _selectedEffDate,
-        revisedRate: double.tryParse(_revisedRateController.text) ?? 0.0,
-        benchmarkRateCode: _benchmarkRateCodeController.text,
-        spreadPct: double.tryParse(_spreadPctController.text) ?? 0.0,
-        revisionReason: _revisionReasonController.text,
-        revisionStatus: _revisionStatus,
-      );
+      setState(() => _isLoading = true);
+      try {
+        final record = RateRevisionHistory(
+          orgCode: _orgCodeController.text,
+          productCode: _selectedProductCode ?? '',
+          effDate: _selectedEffDate,
+          revisedRate: double.tryParse(_revisedRateController.text) ?? 0.0,
+          benchmarkRateCode: _benchmarkRateCodeController.text,
+          spreadPct: double.tryParse(_spreadPctController.text) ?? 0.0,
+          revisionReason: _revisionReasonController.text,
+          revisionStatus: _revisionStatus,
+        );
 
-      if (_viewMode == 'CREATE') {
-        _db.addRateRevision(record);
-      } else if (_viewMode == 'EDIT') {
-        _db.updateRateRevision(record);
+        if (_viewMode == 'CREATE') {
+          await RateRevisionApiService.createRevision(record);
+          if (mounted) _showSnackbar('Revision created successfully!');
+        } else if (_viewMode == 'EDIT') {
+          await RateRevisionApiService.updateRevision(record);
+          if (mounted) _showSnackbar('Revision updated successfully!');
+        }
+        
+        await _loadRevisions();
+        if (mounted) setState(() => _viewMode = 'GRID');
+      } catch (e) {
+        if (mounted) _showSnackbar(e.toString().replaceFirst('Exception: ', ''), isError: true);
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
       }
-
-      setState(() {
-        _viewMode = 'GRID';
-      });
     }
+  }
+
+  void _showSnackbar(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle_outline,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 10),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: isError ? Colors.red.shade700 : Colors.green.shade700,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
   }
 
   void _confirmDelete() {
     if (_selectedRecord != null) {
-      _db.deleteRateRevision(_selectedRecord!.productCode, _selectedRecord!.effDate);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Delete not supported by API')));
       setState(() {
         _viewMode = 'GRID';
         _selectedRecord = null;
@@ -175,7 +226,7 @@ class _RateRevisionHistoryScreenState extends State<RateRevisionHistoryScreen> {
   }
 
   Widget _buildGrid() {
-    final filteredList = _db.rateRevisions.where((r) {
+    final filteredList = _rateRevisions.where((r) {
       final prod = r.productCode.toLowerCase();
       final reason = r.revisionReason.toLowerCase();
       final query = _searchQuery.toLowerCase();
@@ -190,7 +241,7 @@ class _RateRevisionHistoryScreenState extends State<RateRevisionHistoryScreen> {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             TotalRecordsCard(
-              count: _db.rateRevisions.length,
+              count: _rateRevisions.length,
               label: 'Total Rate Revisions',
               icon: Icons.rate_review,
             ),
@@ -374,7 +425,8 @@ class _RateRevisionHistoryScreenState extends State<RateRevisionHistoryScreen> {
     final isView = _viewMode == 'VIEW';
     final isEdit = _viewMode == 'EDIT';
 
-    final productCodes = _db.loanProducts.map((p) => p.productCode).toList();
+    // Since we don't have LoanProduct API loading in this screen yet, we will just use a text field for product code
+    // Or we could fetch it, but for simplicity we'll allow free-text input if the list is empty.
 
     return Form(
       key: _formKey,
@@ -444,17 +496,17 @@ class _RateRevisionHistoryScreenState extends State<RateRevisionHistoryScreen> {
               children: [
                 SizedBox(
                   width: 250,
-                  child: ProgramDropdownField(
+                  child: ProgramFormField(
                     label: 'Product Code',
-                    value: _selectedProductCode,
-                    items: productCodes,
+                    controller: TextEditingController(text: _selectedProductCode)
+                      ..addListener(() {
+                        _selectedProductCode = _selectedProductCode;
+                      }),
                     prefixIcon: Icons.shopping_basket,
                     isRequired: true,
                     isLocked: isEdit || isView,
                     onChanged: (val) {
-                      setState(() {
-                        _selectedProductCode = val;
-                      });
+                      _selectedProductCode = val;
                     },
                   ),
                 ),

@@ -80,6 +80,7 @@ class ProgramFormField extends StatelessWidget {
   final bool isLocked;
   final String? Function(String?)? validator;
   final TextInputType keyboardType;
+  final void Function(String)? onChanged;
 
   const ProgramFormField({
     super.key,
@@ -90,6 +91,7 @@ class ProgramFormField extends StatelessWidget {
     this.isLocked = false,
     this.validator,
     this.keyboardType = TextInputType.text,
+    this.onChanged,
   });
 
   @override
@@ -104,6 +106,7 @@ class ProgramFormField extends StatelessWidget {
         controller: controller,
         enabled: !isLocked,
         keyboardType: keyboardType,
+        onChanged: onChanged,
         validator: validator ?? (isRequired ? (val) => val == null || val.isEmpty ? 'Required field' : null : null),
         style: TextStyle(
           color: isLocked ? Colors.grey.shade700 : const Color(0xFF01579B),

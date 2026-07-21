@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'mock_database.dart';
+import 'services/prepayment_foreclosure_api_service.dart';
+import 'models/prepayment_foreclosure_config.dart';
 import 'shared_widgets.dart';
+import '../am_masters/services/auth_service.dart';
 
 class PrepaymentForeclosureConfigScreen extends StatefulWidget {
   const PrepaymentForeclosureConfigScreen({super.key});
@@ -10,7 +12,9 @@ class PrepaymentForeclosureConfigScreen extends StatefulWidget {
 }
 
 class _PrepaymentForeclosureConfigScreenState extends State<PrepaymentForeclosureConfigScreen> {
-  final MockDatabase _db = MockDatabase();
+  List<PrepaymentForeclosureConfig> _configs = [];
+  bool _isLoading = false;
+  String _currentOrgCode = '1';
   String _viewMode = 'GRID'; // GRID, VIEW, CREATE, EDIT, DELETE
   PrepaymentForeclosureConfig? _selectedRecord;
   String _searchQuery = '';
@@ -33,12 +37,34 @@ class _PrepaymentForeclosureConfigScreenState extends State<PrepaymentForeclosur
   @override
   void initState() {
     super.initState();
-    _db.addListener(_onDbChanged);
+    _initUserAndLoadConfigs();
+  }
+
+  Future<void> _initUserAndLoadConfigs() async {
+    final user = await AuthService().getUser();
+    if (user != null && user.orgCode != null) {
+      _currentOrgCode = user.orgCode.toString();
+    }
+    _resetForm();
+    await _loadConfigs();
+  }
+
+  Future<void> _loadConfigs() async {
+    setState(() => _isLoading = true);
+    try {
+      final configs = await PrepaymentForeclosureApiService.getConfigs(_currentOrgCode);
+      if (mounted) setState(() => _configs = configs);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
   void dispose() {
-    _db.removeListener(_onDbChanged);
     _orgCodeController.dispose();
     _lockInPeriodController.dispose();
     _prepaymentPenaltyValueController.dispose();
@@ -46,13 +72,9 @@ class _PrepaymentForeclosureConfigScreenState extends State<PrepaymentForeclosur
     super.dispose();
   }
 
-  void _onDbChanged() {
-    if (mounted) setState(() {});
-  }
-
   void _resetForm() {
-    _orgCodeController.text = 'ORG01';
-    _selectedProductCode = _db.loanProducts.isNotEmpty ? _db.loanProducts.first.productCode : null;
+    _orgCodeController.text = _currentOrgCode;
+    _selectedProductCode = null;
     _lockInPeriodController.clear();
     _prepaymentPenaltyType = 'Percentage';
     _prepaymentPenaltyValueController.clear();
@@ -76,35 +98,64 @@ class _PrepaymentForeclosureConfigScreenState extends State<PrepaymentForeclosur
     _deleteConfirmed = false;
   }
 
-  void _saveRecord() {
+  Future<void> _saveRecord() async {
     if (_formKey.currentState!.validate()) {
-      final record = PrepaymentForeclosureConfig(
-        orgCode: _orgCodeController.text,
-        productCode: _selectedProductCode ?? '',
-        lockInPeriodMonths: int.tryParse(_lockInPeriodController.text) ?? 0,
-        prepaymentPenaltyType: _prepaymentPenaltyType,
-        prepaymentPenaltyValue: double.tryParse(_prepaymentPenaltyValueController.text) ?? 0.0,
-        foreclosureFeeType: _foreclosureFeeType,
-        foreclosureFeeValue: double.tryParse(_foreclosureFeeValueController.text) ?? 0.0,
-        scheduleRecalcMethod: _scheduleRecalcMethod,
-        configStatus: _configStatus,
-      );
+      setState(() => _isLoading = true);
+      try {
+        final record = PrepaymentForeclosureConfig(
+          orgCode: _orgCodeController.text,
+          productCode: _selectedProductCode ?? '',
+          lockInPeriodMonths: int.tryParse(_lockInPeriodController.text) ?? 0,
+          prepaymentPenaltyType: _prepaymentPenaltyType,
+          prepaymentPenaltyValue: double.tryParse(_prepaymentPenaltyValueController.text) ?? 0.0,
+          foreclosureFeeType: _foreclosureFeeType,
+          foreclosureFeeValue: double.tryParse(_foreclosureFeeValueController.text) ?? 0.0,
+          scheduleRecalcMethod: _scheduleRecalcMethod,
+          configStatus: _configStatus,
+        );
 
-      if (_viewMode == 'CREATE') {
-        _db.addPrepaymentConfig(record);
-      } else if (_viewMode == 'EDIT') {
-        _db.updatePrepaymentConfig(record);
+        if (_viewMode == 'CREATE') {
+          await PrepaymentForeclosureApiService.createConfig(record);
+          if (mounted) _showSnackbar('Configuration created successfully!');
+        } else if (_viewMode == 'EDIT') {
+          await PrepaymentForeclosureApiService.updateConfig(record);
+          if (mounted) _showSnackbar('Configuration updated successfully!');
+        }
+
+        await _loadConfigs();
+        if (mounted) setState(() => _viewMode = 'GRID');
+      } catch (e) {
+        if (mounted) _showSnackbar(e.toString().replaceFirst('Exception: ', ''), isError: true);
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
       }
-
-      setState(() {
-        _viewMode = 'GRID';
-      });
     }
+  }
+
+  void _showSnackbar(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle_outline,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 10),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: isError ? Colors.red.shade700 : Colors.green.shade700,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
   }
 
   void _confirmDelete() {
     if (_selectedRecord != null) {
-      _db.deletePrepaymentConfig(_selectedRecord!.productCode);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Delete not supported by API')));
       setState(() {
         _viewMode = 'GRID';
         _selectedRecord = null;
@@ -116,7 +167,7 @@ class _PrepaymentForeclosureConfigScreenState extends State<PrepaymentForeclosur
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(24.0),
-      child: Column(
+      child: _isLoading ? const Center(child: CircularProgressIndicator()) : Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildScreenHeader(),
@@ -178,7 +229,7 @@ class _PrepaymentForeclosureConfigScreenState extends State<PrepaymentForeclosur
   }
 
   Widget _buildGrid() {
-    final filteredList = _db.prepaymentConfigs.where((p) {
+    final filteredList = _configs.where((p) {
       final prod = p.productCode.toLowerCase();
       final method = p.scheduleRecalcMethod.toLowerCase();
       final query = _searchQuery.toLowerCase();
@@ -193,7 +244,7 @@ class _PrepaymentForeclosureConfigScreenState extends State<PrepaymentForeclosur
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             TotalRecordsCard(
-              count: _db.prepaymentConfigs.length,
+              count: _configs.length,
               label: 'Total Configurations',
               icon: Icons.settings,
             ),
@@ -306,8 +357,8 @@ class _PrepaymentForeclosureConfigScreenState extends State<PrepaymentForeclosur
                   itemBuilder: (context, idx) {
                     final item = filteredList[idx];
                     final isEven = idx % 2 == 0;
-                    final prepVal = item.prepaymentPenaltyType == 'Percentage' ? '${item.prepaymentPenaltyValue}%' : '₹${item.prepaymentPenaltyValue}';
-                    final foreVal = item.foreclosureFeeType == 'Percentage' ? '${item.foreclosureFeeValue}%' : '₹${item.foreclosureFeeValue}';
+                    final prepVal = item.prepaymentPenaltyType == 'Percentage' ? '${item.prepaymentPenaltyValue}%' : 'Rs. ${item.prepaymentPenaltyValue}';
+                    final foreVal = item.foreclosureFeeType == 'Percentage' ? '${item.foreclosureFeeValue}%' : 'Rs. ${item.foreclosureFeeValue}';
                     return Container(
                       color: isEven ? Colors.white : const Color(0xFFF8F9FA),
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -375,8 +426,6 @@ class _PrepaymentForeclosureConfigScreenState extends State<PrepaymentForeclosur
   Widget _buildForm() {
     final isView = _viewMode == 'VIEW';
     final isEdit = _viewMode == 'EDIT';
-
-    final productCodes = _db.loanProducts.map((p) => p.productCode).toList();
 
     return Form(
       key: _formKey,
@@ -446,17 +495,14 @@ class _PrepaymentForeclosureConfigScreenState extends State<PrepaymentForeclosur
               children: [
                 SizedBox(
                   width: 250,
-                  child: ProgramDropdownField(
+                  child: ProgramFormField(
                     label: 'Product Code',
-                    value: _selectedProductCode,
-                    items: productCodes,
+                    controller: TextEditingController(text: _selectedProductCode)..addListener(() { _selectedProductCode = _selectedProductCode; }),
                     prefixIcon: Icons.shopping_basket,
                     isRequired: true,
                     isLocked: isEdit || isView,
                     onChanged: (val) {
-                      setState(() {
-                        _selectedProductCode = val;
-                      });
+                      _selectedProductCode = val;
                     },
                   ),
                 ),

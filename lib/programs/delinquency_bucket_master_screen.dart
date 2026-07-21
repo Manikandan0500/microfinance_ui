@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
-import 'mock_database.dart';
+import 'services/delinquency_bucket_api_service.dart';
+import 'services/loan_product_api_service.dart';
+import 'models/delinquency_bucket_master.dart';
+import 'models/loan_product_master.dart';
 import 'shared_widgets.dart';
+import '../am_masters/services/auth_service.dart';
 
 class DelinquencyBucketMasterScreen extends StatefulWidget {
   const DelinquencyBucketMasterScreen({super.key});
@@ -10,7 +14,10 @@ class DelinquencyBucketMasterScreen extends StatefulWidget {
 }
 
 class _DelinquencyBucketMasterScreenState extends State<DelinquencyBucketMasterScreen> {
-  final MockDatabase _db = MockDatabase();
+  List<DelinquencyBucketMaster> _buckets = [];
+  List<LoanProductMaster> _loanProducts = [];
+  bool _isLoading = false;
+  String _currentOrgCode = '101';
   String _viewMode = 'GRID'; // GRID, VIEW, CREATE, EDIT, DELETE
   DelinquencyBucketMaster? _selectedRecord;
   String _searchQuery = '';
@@ -34,12 +41,21 @@ class _DelinquencyBucketMasterScreenState extends State<DelinquencyBucketMasterS
   @override
   void initState() {
     super.initState();
-    _db.addListener(_onDbChanged);
+    _initUserAndLoadData();
+  }
+
+  Future<void> _initUserAndLoadData() async {
+    final user = await AuthService().getUser();
+    if (user != null && user.orgCode != null) {
+      _currentOrgCode = user.orgCode.toString();
+    }
+    _resetForm();
+    await _loadData();
   }
 
   @override
   void dispose() {
-    _db.removeListener(_onDbChanged);
+
     _orgCodeController.dispose();
     _delinquencyCodeController.dispose();
     _bucketLabelController.dispose();
@@ -50,13 +66,42 @@ class _DelinquencyBucketMasterScreenState extends State<DelinquencyBucketMasterS
     super.dispose();
   }
 
+  Future<void> _loadData() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final buckets = await DelinquencyBucketApiService.getBuckets(_currentOrgCode);
+      final products = await LoanProductApiService.getProducts(_currentOrgCode);
+
+      if (mounted) {
+        setState(() {
+          _buckets = buckets;
+          _loanProducts = products;
+          if (_loanProducts.isNotEmpty && _selectedProductCode == null) {
+            _selectedProductCode = _loanProducts.first.productCode;
+          }
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    }
+  }
+
   void _onDbChanged() {
     if (mounted) setState(() {});
   }
 
   void _resetForm() {
-    _orgCodeController.text = 'ORG01';
-    _selectedProductCode = _db.loanProducts.isNotEmpty ? _db.loanProducts.first.productCode : null;
+    _orgCodeController.text = _currentOrgCode;
+    _selectedProductCode = _loanProducts.isNotEmpty ? _loanProducts.first.productCode : null;
     _delinquencyCodeController.clear();
     _bucketLabelController.clear();
     _overdueDaysFromController.clear();
@@ -82,7 +127,7 @@ class _DelinquencyBucketMasterScreenState extends State<DelinquencyBucketMasterS
     _deleteConfirmed = false;
   }
 
-  void _saveRecord() {
+  void _saveRecord() async {
     if (_formKey.currentState!.validate()) {
       final record = DelinquencyBucketMaster(
         orgCode: _orgCodeController.text,
@@ -97,21 +142,27 @@ class _DelinquencyBucketMasterScreenState extends State<DelinquencyBucketMasterS
         bucketStatus: _bucketStatus,
       );
 
-      if (_viewMode == 'CREATE') {
-        _db.addDelinquencyBucket(record);
-      } else if (_viewMode == 'EDIT') {
-        _db.updateDelinquencyBucket(record);
+      try {
+        if (_viewMode == 'CREATE') {
+          await DelinquencyBucketApiService.createBucket(record);
+        } else if (_viewMode == 'EDIT') {
+          await DelinquencyBucketApiService.updateBucket(record);
+        }
+        await _loadData();
+        setState(() {
+          _viewMode = 'GRID';
+        });
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+        }
       }
-
-      setState(() {
-        _viewMode = 'GRID';
-      });
     }
   }
 
-  void _confirmDelete() {
+  void _confirmDelete() async {
     if (_selectedRecord != null) {
-      _db.deleteDelinquencyBucket(_selectedRecord!.delinquencyCode);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Delete not supported by API')));
       setState(() {
         _viewMode = 'GRID';
         _selectedRecord = null;
@@ -185,7 +236,7 @@ class _DelinquencyBucketMasterScreenState extends State<DelinquencyBucketMasterS
   }
 
   Widget _buildGrid() {
-    final filteredList = _db.delinquencyBuckets.where((d) {
+    final filteredList = _buckets.where((d) {
       final code = d.delinquencyCode.toLowerCase();
       final label = d.bucketLabel.toLowerCase();
       final prod = d.productCode.toLowerCase();
@@ -201,7 +252,7 @@ class _DelinquencyBucketMasterScreenState extends State<DelinquencyBucketMasterS
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             TotalRecordsCard(
-              count: _db.delinquencyBuckets.length,
+              count: _buckets.length,
               label: 'Total Delinquency Buckets',
               icon: Icons.assignment_late,
             ),
@@ -392,7 +443,7 @@ class _DelinquencyBucketMasterScreenState extends State<DelinquencyBucketMasterS
     final isView = _viewMode == 'VIEW';
     final isEdit = _viewMode == 'EDIT';
 
-    final productCodes = _db.loanProducts.map((p) => p.productCode).toList();
+    final productCodes = _loanProducts.map((p) => p.productCode).toList();
 
     return Form(
       key: _formKey,

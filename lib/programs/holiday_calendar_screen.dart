@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'mock_database.dart';
+import 'services/holiday_calendar_api_service.dart';
+import 'models/holiday_calendar.dart';
 import 'shared_widgets.dart';
+import '../am_masters/services/auth_service.dart';
 
 class HolidayCalendarScreen extends StatefulWidget {
   const HolidayCalendarScreen({super.key});
@@ -10,7 +12,9 @@ class HolidayCalendarScreen extends StatefulWidget {
 }
 
 class _HolidayCalendarScreenState extends State<HolidayCalendarScreen> {
-  final MockDatabase _db = MockDatabase();
+  List<HolidayCalendar> _holidays = [];
+  bool _isLoading = false;
+  String _currentOrgCode = '1';
   String _viewMode = 'GRID'; // GRID, VIEW, CREATE, EDIT, DELETE
   HolidayCalendar? _selectedRecord;
   String _searchQuery = '';
@@ -31,24 +35,42 @@ class _HolidayCalendarScreenState extends State<HolidayCalendarScreen> {
   @override
   void initState() {
     super.initState();
-    _db.addListener(_onDbChanged);
+    _initUserAndLoadHolidays();
+  }
+
+  Future<void> _initUserAndLoadHolidays() async {
+    final user = await AuthService().getUser();
+    if (user != null && user.orgCode != null) {
+      _currentOrgCode = user.orgCode.toString();
+    }
+    _resetForm();
+    await _loadHolidays();
+  }
+
+  Future<void> _loadHolidays() async {
+    setState(() => _isLoading = true);
+    try {
+      final holidays = await HolidayCalendarApiService.getHolidays(_currentOrgCode);
+      if (mounted) setState(() => _holidays = holidays);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
   void dispose() {
-    _db.removeListener(_onDbChanged);
     _orgCodeController.dispose();
     _branchCodeController.dispose();
     _holidayNameController.dispose();
     super.dispose();
   }
 
-  void _onDbChanged() {
-    if (mounted) setState(() {});
-  }
-
   void _resetForm() {
-    _orgCodeController.text = 'ORG01';
+    _orgCodeController.text = _currentOrgCode;
     _branchCodeController.text = 'ALL';
     _selectedHolidayDate = DateTime.now();
     _holidayNameController.clear();
@@ -69,33 +91,62 @@ class _HolidayCalendarScreenState extends State<HolidayCalendarScreen> {
     _deleteConfirmed = false;
   }
 
-  void _saveRecord() {
+  Future<void> _saveRecord() async {
     if (_formKey.currentState!.validate()) {
-      final record = HolidayCalendar(
-        orgCode: _orgCodeController.text,
-        branchCode: _branchCodeController.text,
-        holidayDate: _selectedHolidayDate,
-        holidayName: _holidayNameController.text,
-        holidayType: _holidayType,
-        dueDateShiftRule: _dueDateShiftRule,
-        calendarStatus: _calendarStatus,
-      );
+      setState(() => _isLoading = true);
+      try {
+        final record = HolidayCalendar(
+          orgCode: _orgCodeController.text,
+          branchCode: _branchCodeController.text,
+          holidayDate: _selectedHolidayDate,
+          holidayName: _holidayNameController.text,
+          holidayType: _holidayType,
+          dueDateShiftRule: _dueDateShiftRule,
+          calendarStatus: _calendarStatus,
+        );
 
-      if (_viewMode == 'CREATE') {
-        _db.addHoliday(record);
-      } else if (_viewMode == 'EDIT') {
-        _db.updateHoliday(record);
+        if (_viewMode == 'CREATE') {
+          await HolidayCalendarApiService.createHoliday(record);
+          if (mounted) _showSnackbar('Holiday created successfully!');
+        } else if (_viewMode == 'EDIT') {
+          await HolidayCalendarApiService.updateHoliday(record);
+          if (mounted) _showSnackbar('Holiday updated successfully!');
+        }
+
+        await _loadHolidays();
+        if (mounted) setState(() => _viewMode = 'GRID');
+      } catch (e) {
+        if (mounted) _showSnackbar(e.toString().replaceFirst('Exception: ', ''), isError: true);
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
       }
-
-      setState(() {
-        _viewMode = 'GRID';
-      });
     }
+  }
+
+  void _showSnackbar(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle_outline,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 10),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: isError ? Colors.red.shade700 : Colors.green.shade700,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
   }
 
   void _confirmDelete() {
     if (_selectedRecord != null) {
-      _db.deleteHoliday(_selectedRecord!.branchCode, _selectedRecord!.holidayDate);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Delete not supported by API')));
       setState(() {
         _viewMode = 'GRID';
         _selectedRecord = null;
@@ -107,7 +158,7 @@ class _HolidayCalendarScreenState extends State<HolidayCalendarScreen> {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(24.0),
-      child: Column(
+      child: _isLoading ? const Center(child: CircularProgressIndicator()) : Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildScreenHeader(),
@@ -169,7 +220,7 @@ class _HolidayCalendarScreenState extends State<HolidayCalendarScreen> {
   }
 
   Widget _buildGrid() {
-    final filteredList = _db.holidays.where((h) {
+    final filteredList = _holidays.where((h) {
       final branch = h.branchCode.toLowerCase();
       final name = h.holidayName.toLowerCase();
       final type = h.holidayType.toLowerCase();
@@ -185,7 +236,7 @@ class _HolidayCalendarScreenState extends State<HolidayCalendarScreen> {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             TotalRecordsCard(
-              count: _db.holidays.length,
+              count: _holidays.length,
               label: 'Total Holidays Set',
               icon: Icons.calendar_month,
             ),
