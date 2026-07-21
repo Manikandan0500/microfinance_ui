@@ -26,7 +26,7 @@ class _AuthConfigScreenState extends State<AuthConfigScreen> {
   bool _postApprove = false;
   bool _isTran = false;
 
-  final List<String> _programs = ['LOANMST', 'REGMAS', 'BRANCHMST', 'USERMST', 'LOANDISB', 'LOANDBM', 'LOANPRH', 'LOANGLM', 'LOANRRH', 'HOLICAL', 'LOANPFC'];
+  final List<String> _programs = ['LOANMST', 'REGMAS', 'BRANCHMST', 'USERMST', 'LOANDISB', 'LOANDBM', 'LOANPRH', 'LOANGLM', 'LOANRRH', 'HOLICAL', 'LOANPFC', 'DISBQUEUE'];
 
   @override
   void initState() {

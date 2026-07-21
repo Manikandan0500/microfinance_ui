@@ -10,6 +10,8 @@ import 'models/prepayment_foreclosure_config.dart';
 import 'models/rate_revision_history.dart';
 import 'models/holiday_calendar.dart';
 import 'models/auth_models.dart';
+import 'models/disbursal_queue.dart';
+import 'models/pending_disbursal.dart';
 
 export 'models/region_master.dart';
 export 'models/branch_region_map.dart';
@@ -21,6 +23,8 @@ export 'models/prepayment_foreclosure_config.dart';
 export 'models/rate_revision_history.dart';
 export 'models/holiday_calendar.dart';
 export 'models/auth_models.dart';
+export 'models/disbursal_queue.dart';
+export 'models/pending_disbursal.dart';
 
 
 // --- Mock Database (In-Memory State Store) ---
@@ -49,7 +53,7 @@ class MockDatabase extends ChangeNotifier {
   final List<LoanProductMaster> loanProducts = [
     LoanProductMaster(
       orgCode: 'ORG01',
-      productCode: 'PROD-JLG',
+      productCode: 'DISBQUEUE',
       productName: 'Joint Liability Group Loan',
       minAmount: 10000.0,
       maxAmount: 50000.0,
@@ -122,29 +126,29 @@ class MockDatabase extends ChangeNotifier {
   ];
 
   final List<DelinquencyBucketMaster> delinquencyBuckets = [
-    DelinquencyBucketMaster(orgCode: 'ORG01', productCode: 'PROD-JLG', delinquencyCode: 'JLG-STD', bucketLabel: 'Standard (0-30 days)', overdueDaysFrom: 0, overdueDaysTo: 30, stageOrder: 1, isNpaFlag: false, provisionPct: 0.25, bucketStatus: true),
-    DelinquencyBucketMaster(orgCode: 'ORG01', productCode: 'PROD-JLG', delinquencyCode: 'JLG-SUBSTD', bucketLabel: 'Sub-Standard (31-60 days)', overdueDaysFrom: 31, overdueDaysTo: 60, stageOrder: 2, isNpaFlag: false, provisionPct: 10.0, bucketStatus: true),
-    DelinquencyBucketMaster(orgCode: 'ORG01', productCode: 'PROD-JLG', delinquencyCode: 'JLG-DOUBT', bucketLabel: 'Doubtful (61-90 days)', overdueDaysFrom: 61, overdueDaysTo: 90, stageOrder: 3, isNpaFlag: true, provisionPct: 25.0, bucketStatus: true),
-    DelinquencyBucketMaster(orgCode: 'ORG01', productCode: 'PROD-JLG', delinquencyCode: 'JLG-LOSS', bucketLabel: 'Loss (90+ days)', overdueDaysFrom: 91, overdueDaysTo: 9999, stageOrder: 4, isNpaFlag: true, provisionPct: 100.0, bucketStatus: true),
+    DelinquencyBucketMaster(orgCode: 'ORG01', productCode: 'DISBQUEUE', delinquencyCode: 'JLG-STD', bucketLabel: 'Standard (0-30 days)', overdueDaysFrom: 0, overdueDaysTo: 30, stageOrder: 1, isNpaFlag: false, provisionPct: 0.25, bucketStatus: true),
+    DelinquencyBucketMaster(orgCode: 'ORG01', productCode: 'DISBQUEUE', delinquencyCode: 'JLG-SUBSTD', bucketLabel: 'Sub-Standard (31-60 days)', overdueDaysFrom: 31, overdueDaysTo: 60, stageOrder: 2, isNpaFlag: false, provisionPct: 10.0, bucketStatus: true),
+    DelinquencyBucketMaster(orgCode: 'ORG01', productCode: 'DISBQUEUE', delinquencyCode: 'JLG-DOUBT', bucketLabel: 'Doubtful (61-90 days)', overdueDaysFrom: 61, overdueDaysTo: 90, stageOrder: 3, isNpaFlag: true, provisionPct: 25.0, bucketStatus: true),
+    DelinquencyBucketMaster(orgCode: 'ORG01', productCode: 'DISBQUEUE', delinquencyCode: 'JLG-LOSS', bucketLabel: 'Loss (90+ days)', overdueDaysFrom: 91, overdueDaysTo: 9999, stageOrder: 4, isNpaFlag: true, provisionPct: 100.0, bucketStatus: true),
   ];
 
   final List<PenaltyRateHistory> penaltyRates = [
-    PenaltyRateHistory(orgCode: 'ORG01', productCode: 'PROD-JLG', delinquencyCode: 'JLG-STD', effDate: DateTime(2026, 01, 01), penaltyType: 'Percentage', penaltyValue: 1.0, rateStatus: true),
-    PenaltyRateHistory(orgCode: 'ORG01', productCode: 'PROD-JLG', delinquencyCode: 'JLG-SUBSTD', effDate: DateTime(2026, 01, 01), penaltyType: 'Percentage', penaltyValue: 2.0, rateStatus: true),
-    PenaltyRateHistory(orgCode: 'ORG01', productCode: 'PROD-JLG', delinquencyCode: 'JLG-DOUBT', effDate: DateTime(2026, 01, 01), penaltyType: 'Percentage', penaltyValue: 3.5, rateStatus: true),
-    PenaltyRateHistory(orgCode: 'ORG01', productCode: 'PROD-JLG', delinquencyCode: 'JLG-LOSS', effDate: DateTime(2026, 01, 01), penaltyType: 'Fixed', penaltyValue: 500.0, rateStatus: true),
+    PenaltyRateHistory(orgCode: 'ORG01', productCode: 'DISBQUEUE', delinquencyCode: 'JLG-STD', effDate: DateTime(2026, 01, 01), penaltyType: 'Percentage', penaltyValue: 1.0, rateStatus: true),
+    PenaltyRateHistory(orgCode: 'ORG01', productCode: 'DISBQUEUE', delinquencyCode: 'JLG-SUBSTD', effDate: DateTime(2026, 01, 01), penaltyType: 'Percentage', penaltyValue: 2.0, rateStatus: true),
+    PenaltyRateHistory(orgCode: 'ORG01', productCode: 'DISBQUEUE', delinquencyCode: 'JLG-DOUBT', effDate: DateTime(2026, 01, 01), penaltyType: 'Percentage', penaltyValue: 3.5, rateStatus: true),
+    PenaltyRateHistory(orgCode: 'ORG01', productCode: 'DISBQUEUE', delinquencyCode: 'JLG-LOSS', effDate: DateTime(2026, 01, 01), penaltyType: 'Fixed', penaltyValue: 500.0, rateStatus: true),
   ];
 
   final List<AssetClassificationGlMap> assetGlMaps = [
-    AssetClassificationGlMap(orgCode: 'ORG01', productCode: 'PROD-JLG', delinquencyCode: 'JLG-STD', prinGl: 'GL-100201-STD', intGl: 'GL-300401-STD', provisionGl: 'GL-200501-STD', mapStatus: true),
-    AssetClassificationGlMap(orgCode: 'ORG01', productCode: 'PROD-JLG', delinquencyCode: 'JLG-SUBSTD', prinGl: 'GL-100201-SUB', intGl: 'GL-300401-SUB', provisionGl: 'GL-200501-SUB', mapStatus: true),
-    AssetClassificationGlMap(orgCode: 'ORG01', productCode: 'PROD-JLG', delinquencyCode: 'JLG-DOUBT', prinGl: 'GL-100201-DBT', intGl: 'GL-300401-DBT', provisionGl: 'GL-200501-DBT', mapStatus: true),
+    AssetClassificationGlMap(orgCode: 'ORG01', productCode: 'DISBQUEUE', delinquencyCode: 'JLG-STD', prinGl: 'GL-100201-STD', intGl: 'GL-300401-STD', provisionGl: 'GL-200501-STD', mapStatus: true),
+    AssetClassificationGlMap(orgCode: 'ORG01', productCode: 'DISBQUEUE', delinquencyCode: 'JLG-SUBSTD', prinGl: 'GL-100201-SUB', intGl: 'GL-300401-SUB', provisionGl: 'GL-200501-SUB', mapStatus: true),
+    AssetClassificationGlMap(orgCode: 'ORG01', productCode: 'DISBQUEUE', delinquencyCode: 'JLG-DOUBT', prinGl: 'GL-100201-DBT', intGl: 'GL-300401-DBT', provisionGl: 'GL-200501-DBT', mapStatus: true),
   ];
 
   final List<PrepaymentForeclosureConfig> prepaymentConfigs = [
     PrepaymentForeclosureConfig(
       orgCode: 'ORG01',
-      productCode: 'PROD-JLG',
+      productCode: 'DISBQUEUE',
       lockInPeriodMonths: 3,
       prepaymentPenaltyType: 'Percentage',
       prepaymentPenaltyValue: 2.0,
@@ -179,7 +183,7 @@ class MockDatabase extends ChangeNotifier {
   ];
 
   final List<Auth101Config> authConfigs = [
-    const Auth101Config(id: 'PROD-JLG', name: 'JLG Product Setup', approvalReq: true, isTran: false, levels: 1),
+    const Auth101Config(id: 'DISBQUEUE', name: 'JLG Product Setup', approvalReq: true, isTran: false, levels: 1),
     const Auth101Config(id: 'REGION-MST', name: 'Region Master', approvalReq: true, isTran: false, levels: 1),
   ];
 
@@ -187,14 +191,14 @@ class MockDatabase extends ChangeNotifier {
     AuthRecord(
       orgCode: 'ORG01',
       effDate: '2026-07-13',
-      programId: 'PROD-JLG',
+      programId: 'DISBQUEUE',
       primaryKey: 'JLG-NEW',
       authSl: 'AUTH-2026-001',
       displayRemarks: 'New Joint Liability Group Product',
       eUser: 'admin',
       eDate: '2026-07-13',
       dataBlocks: [
-        AuthDataBlock(recSl: 1, tableName: 'LOAN_PROD', data: {'productCode': 'PROD-JLG', 'productName': 'JLG Loan'})
+        AuthDataBlock(recSl: 1, tableName: 'LOAN_PROD', data: {'productCode': 'DISBQUEUE', 'productName': 'JLG Loan'})
       ],
     ),
     AuthRecord(
@@ -212,15 +216,104 @@ class MockDatabase extends ChangeNotifier {
     ),
   ];
 
+  final List<DisbursalQueue> disbursalQueue = [
+    DisbursalQueue(
+      orgCode: '101',
+      queueId: 'Q-001',
+      sourceSystem: 'LOS',
+      sourceRefNo: 'APP-100201',
+      clientId: 'CLI-001',
+      groupCode: 'GRP-001',
+      productCode: 'DISBQUEUE',
+      approvedAmount: 45000.0,
+      approvedTenureMonths: 24,
+      approvedInterestRate: 18.0,
+      queuedDate: DateTime(2026, 07, 15),
+      assignedToUserId: 'admin',
+      disbursementStatus: 'Approved',
+    ),
+    DisbursalQueue(
+      orgCode: '101',
+      queueId: 'Q-002',
+      sourceSystem: 'MANUAL',
+      sourceRefNo: null,
+      clientId: 'CLI-002',
+      groupCode: null,
+      productCode: 'PROD-SHG',
+      approvedAmount: 80000.0,
+      approvedTenureMonths: 36,
+      approvedInterestRate: 16.5,
+      queuedDate: DateTime(2026, 07, 18),
+      assignedToUserId: 'admin',
+      disbursementStatus: 'Pending Input',
+    ),
+  ];
+
+  final List<PendingDisbursal> pendingDisbursals = [
+    PendingDisbursal(
+      orgCode: '101',
+      loanAccountNo: 'L-CLI-002',
+      disbursementSeqNo: 1,
+      disbursementAmount: 80000.0,
+      currencyCode: 'INR',
+      disbursementMode: 'Bank',
+      bankRefNo: '',
+      disbursedByUserId: 'admin',
+      disbursementDate: DateTime(2026, 07, 18),
+      disbursementStatus: 'Pending Input',
+      accPostingRef: '',
+      accPostingStatus: 'Pending',
+    ),
+  ];
+
+
   void processAuth(String authSl, String action) {
-    authQueue.removeWhere((element) => element.authSl == authSl);
+    final idx = authQueue.indexWhere((element) => element.authSl == authSl);
+    if (idx != -1) {
+      final record = authQueue[idx];
+      if (record.programId == 'DISB002') {
+        if (action == '1') {
+          // Approved
+          final pIdx = pendingDisbursals.indexWhere((p) => p.loanAccountNo == record.primaryKey);
+          if (pIdx != -1) {
+            pendingDisbursals[pIdx] = pendingDisbursals[pIdx].copyWith(
+              disbursementStatus: 'Completed',
+              accPostingStatus: 'Posted',
+              accPostingRef: 'VOUCH-${DateTime.now().millisecondsSinceEpoch}',
+            );
+          }
+          final clientId = record.primaryKey.replaceFirst('L-', '');
+          final qIdx = disbursalQueue.indexWhere((q) => q.clientId == clientId);
+          if (qIdx != -1) {
+            disbursalQueue[qIdx] = disbursalQueue[qIdx].copyWith(disbursementStatus: 'Approved');
+          }
+        } else {
+          // Rejected
+          final pIdx = pendingDisbursals.indexWhere((p) => p.loanAccountNo == record.primaryKey);
+          if (pIdx != -1) {
+            pendingDisbursals[pIdx] = pendingDisbursals[pIdx].copyWith(
+              disbursementStatus: 'Failed',
+              accPostingStatus: 'Failed',
+            );
+          }
+          final clientId = record.primaryKey.replaceFirst('L-', '');
+          final qIdx = disbursalQueue.indexWhere((q) => q.clientId == clientId);
+          if (qIdx != -1) {
+            disbursalQueue[qIdx] = disbursalQueue[qIdx].copyWith(disbursementStatus: 'Rejected');
+          }
+        }
+      }
+      authQueue.removeAt(idx);
+    }
     notifyListeners();
   }
+
 
   void removeAuth(String authSl) {
     authQueue.removeWhere((element) => element.authSl == authSl);
     notifyListeners();
   }
+
 
   // --- CRUD Methods: Region Master ---
   void addRegion(RegionMaster record) {
@@ -392,4 +485,125 @@ class MockDatabase extends ChangeNotifier {
     holidays.removeWhere((h) => h.branchCode == branchCode && h.holidayDate == holidayDate);
     notifyListeners();
   }
+
+  // --- CRUD Methods: Disbursal Queue (DISB001) & Disbursement Queue (DISB002) ---
+  void addDisbursalQueue(DisbursalQueue record) {
+    disbursalQueue.add(record);
+    // Automatically create a corresponding PendingDisbursal record
+    pendingDisbursals.add(PendingDisbursal(
+      orgCode: record.orgCode,
+      loanAccountNo: 'L-${record.clientId}',
+      disbursementSeqNo: 1,
+      disbursementAmount: record.approvedAmount,
+      currencyCode: 'INR',
+      disbursementMode: 'Bank',
+      bankRefNo: '',
+      disbursedByUserId: record.assignedToUserId ?? 'admin',
+      disbursementDate: DateTime.now(),
+      disbursementStatus: 'Pending Input',
+      accPostingRef: '',
+      accPostingStatus: 'Pending',
+    ));
+    notifyListeners();
+  }
+
+  void updateDisbursalQueue(DisbursalQueue record) {
+    final idx = disbursalQueue.indexWhere((r) => r.queueId == record.queueId);
+    if (idx != -1) {
+      disbursalQueue[idx] = record;
+      notifyListeners();
+    }
+  }
+
+  void deleteDisbursalQueue(String queueId) {
+    final recordIdx = disbursalQueue.indexWhere((r) => r.queueId == queueId);
+    if (recordIdx != -1) {
+      final record = disbursalQueue[recordIdx];
+      disbursalQueue.removeAt(recordIdx);
+      pendingDisbursals.removeWhere((p) => p.loanAccountNo == 'L-${record.clientId}');
+      notifyListeners();
+    }
+  }
+
+  void submitToAuthQueue(String loanAccountNo, PendingDisbursal updatedRecord, DisbursalQueue updatedQueue) {
+    // 1. Update DisbursalQueue
+    final qIdx = disbursalQueue.indexWhere((q) => q.clientId == updatedQueue.clientId);
+    if (qIdx != -1) {
+      disbursalQueue[qIdx] = updatedQueue.copyWith(disbursementStatus: 'Pending Authorization');
+    }
+    
+    // 2. Update PendingDisbursal
+    final pIdx = pendingDisbursals.indexWhere((p) => p.loanAccountNo == loanAccountNo);
+    if (pIdx != -1) {
+      pendingDisbursals[pIdx] = updatedRecord.copyWith(disbursementStatus: 'Pending Authorization');
+    }
+
+    // 3. Add to AuthQueue
+    authQueue.add(AuthRecord(
+      orgCode: updatedRecord.orgCode,
+      effDate: DateTime.now().toIso8601String().substring(0, 10),
+      programId: 'DISB002',
+      primaryKey: loanAccountNo,
+      authSl: 'AUTH-DISB-${DateTime.now().millisecondsSinceEpoch}',
+      displayRemarks: 'Authorize Disbursal for Client ${updatedQueue.clientId}',
+      eUser: 'admin',
+      eDate: DateTime.now().toIso8601String().substring(0, 10),
+      dataBlocks: [
+        AuthDataBlock(
+          recSl: 1,
+          tableName: 'DISB_DTL',
+          data: {
+            'Loan Account No': updatedRecord.loanAccountNo,
+            'Disbursement Amount': '${updatedRecord.currencyCode} ${updatedRecord.disbursementAmount.toStringAsFixed(2)}',
+            'Mode': updatedRecord.disbursementMode,
+            'Bank Ref No': updatedRecord.bankRefNo ?? '',
+            'Product Code': updatedQueue.productCode,
+            'Approved Tenure': '${updatedQueue.approvedTenureMonths} Months',
+            'Interest Rate': '${updatedQueue.approvedInterestRate}%',
+          },
+        ),
+      ],
+    ));
+    
+    notifyListeners();
+  }
+
+  void approvePendingDisbursal(String loanAccountNo) {
+    final pIdx = pendingDisbursals.indexWhere((p) => p.loanAccountNo == loanAccountNo);
+    if (pIdx != -1) {
+      pendingDisbursals[pIdx] = pendingDisbursals[pIdx].copyWith(
+        disbursementStatus: 'Completed',
+        accPostingStatus: 'Posted',
+        accPostingRef: 'VOUCH-${DateTime.now().millisecondsSinceEpoch}',
+      );
+      
+      // Update status in disbursalQueue to Approved
+      final clientId = loanAccountNo.replaceFirst('L-', '');
+      final qIdx = disbursalQueue.indexWhere((q) => q.clientId == clientId);
+      if (qIdx != -1) {
+        disbursalQueue[qIdx] = disbursalQueue[qIdx].copyWith(disbursementStatus: 'Approved');
+      }
+      notifyListeners();
+    }
+  }
+
+  void rejectPendingDisbursal(String loanAccountNo) {
+    final pIdx = pendingDisbursals.indexWhere((p) => p.loanAccountNo == loanAccountNo);
+    if (pIdx != -1) {
+      pendingDisbursals[pIdx] = pendingDisbursals[pIdx].copyWith(
+        disbursementStatus: 'Failed',
+        accPostingStatus: 'Failed',
+      );
+      
+      // Update status in disbursalQueue to Rejected
+      final clientId = loanAccountNo.replaceFirst('L-', '');
+      final qIdx = disbursalQueue.indexWhere((q) => q.clientId == clientId);
+      if (qIdx != -1) {
+        disbursalQueue[qIdx] = disbursalQueue[qIdx].copyWith(disbursementStatus: 'Rejected');
+      }
+      notifyListeners();
+    }
+  }
+
 }
+

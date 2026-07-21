@@ -12,6 +12,8 @@ import '../programs/rate_revision_history_screen.dart';
 import '../programs/holiday_calendar_screen.dart';
 import '../programs/authorization_screen.dart';
 import '../programs/auth_config_screen.dart';
+import '../programs/disbursal_initiate_screen.dart';
+import '../programs/disbursal_pending_screen.dart';
 
 
 // ── AM Masters Screens ──────────────────────────────────────────────────────
@@ -430,7 +432,7 @@ class _MainShellState extends State<MainShell> {
                                       _buildSubMenuItem('Delinquency Bucket Master', Icons.warning_amber_outlined),
                                       _buildSubMenuItem('Penalty Rate History', Icons.gavel_outlined),
                                       _buildSubMenuItem('Asset Classification GL Map', Icons.category_outlined),
-                                      _buildSubMenuItem('Prepayment / Foreclosure Configuration', Icons.settings_outlined),
+                                      _buildSubMenuItem('Prepayment Foreclosure Configuration', Icons.settings_outlined),
                                       _buildSubMenuItem('Rate Revision History', Icons.trending_up_outlined),
                                       _buildSubMenuItem('Holiday Calendar', Icons.calendar_month_outlined),
                                     ],
@@ -460,25 +462,42 @@ class _MainShellState extends State<MainShell> {
                                     ],
                                   ),
                                 ),
-                              if (_isSidebarHovered)
-                                Theme(
-                                  data: Theme.of(context).copyWith(
-                                    dividerColor: Colors.transparent,
+                                if (_isSidebarHovered) ...[
+                                  Theme(
+                                    data: Theme.of(context).copyWith(
+                                      dividerColor: Colors.transparent,
+                                    ),
+                                    child: ExpansionTile(
+                                      leading: const Icon(Icons.payments_outlined, color: Colors.white70),
+                                      title: const Text('Disbursal', style: TextStyle(color: Colors.white, fontSize: 14)),
+                                      iconColor: Colors.white,
+                                      collapsedIconColor: Colors.white70,
+                                      childrenPadding: const EdgeInsets.only(left: 12.0),
+                                      initiallyExpanded: false,
+                                      children: [
+                                        _buildSubMenuItem('Initiate Disbursal', Icons.send_outlined),
+                                        _buildSubMenuItem('Disbursement Queue', Icons.pending_actions_outlined),
+                                      ],
+                                    ),
                                   ),
-                                  child: ExpansionTile(
-                                    leading: const Icon(Icons.computer_outlined, color: Colors.white70),
-                                    title: const Text('System', style: TextStyle(color: Colors.white, fontSize: 14)),
-                                    iconColor: Colors.white,
-                                    collapsedIconColor: Colors.white70,
-                                    childrenPadding: const EdgeInsets.only(left: 12.0),
-                                    initiallyExpanded: false,
-                                    children: [
-                                      _buildSubMenuItem('Configuration', Icons.settings_applications_outlined),
-                                      _buildSubMenuItem('Authorization Queue', Icons.security_outlined),
-                                    ],
+                                  Theme(
+                                    data: Theme.of(context).copyWith(
+                                      dividerColor: Colors.transparent,
+                                    ),
+                                    child: ExpansionTile(
+                                      leading: const Icon(Icons.computer_outlined, color: Colors.white70),
+                                      title: const Text('System', style: TextStyle(color: Colors.white, fontSize: 14)),
+                                      iconColor: Colors.white,
+                                      collapsedIconColor: Colors.white70,
+                                      childrenPadding: const EdgeInsets.only(left: 12.0),
+                                      initiallyExpanded: false,
+                                      children: [
+                                        _buildSubMenuItem('Configuration', Icons.settings_applications_outlined),
+                                        _buildSubMenuItem('Authorization Queue', Icons.security_outlined),
+                                      ],
+                                    ),
                                   ),
-                                )
-                              else ...[
+                                ] else ...[
                                 _buildMenuItem(
                                   icon: Icons.folder_open,
                                   title: 'MF Masters',
@@ -488,6 +507,12 @@ class _MainShellState extends State<MainShell> {
                                 _buildMenuItem(
                                   icon: Icons.admin_panel_settings_outlined,
                                   title: 'AM Masters',
+                                  isSelected: false,
+                                  onTap: () {},
+                                ),
+                                _buildMenuItem(
+                                  icon: Icons.payments_outlined,
+                                  title: 'Disbursal',
                                   isSelected: false,
                                   onTap: () {},
                                 ),
@@ -506,6 +531,7 @@ class _MainShellState extends State<MainShell> {
                     ),
                   ),
                 ),
+
                 
                 // Main Content
                 Expanded(
@@ -537,7 +563,7 @@ class _MainShellState extends State<MainShell> {
         return const PenaltyRateHistoryScreen();
       case 'Asset Classification GL Map':
         return const AssetClassificationGlMapScreen();
-      case 'Prepayment / Foreclosure Configuration':
+      case 'Prepayment Foreclosure Configuration':
         return const PrepaymentForeclosureConfigScreen();
       case 'Rate Revision History':
         return const RateRevisionHistoryScreen();
@@ -565,6 +591,13 @@ class _MainShellState extends State<MainShell> {
         return const AuthConfigScreen();
       case 'Authorization Queue':
         return const AuthorizationScreen();
+
+      // ── Disbursal ─────────────────────────────────────────────────────────
+      case 'Initiate Disbursal':
+        return const DisbursalInitiateScreen();
+      case 'Disbursement Queue':
+        return const DisbursalPendingScreen();
+
 
       // ── Dashboard ─────────────────────────────────────────────────────────
       case 'Dashboard':
