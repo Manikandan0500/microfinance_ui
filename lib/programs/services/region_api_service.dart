@@ -1,14 +1,16 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../../Login/services/auth_service 4.dart';
 import '../models/region_master.dart';
 
 class RegionApiService {
   static const String _baseUrl = 'http://localhost:8085/api/master';
-  static const int _defaultOrgCode = 101;
+
+  static int get _userOrgCode => AuthService().currentUser?.orgCode ?? 101;
 
   /// Fetch all regions for the default orgCode
   static Future<List<RegionMaster>> getRegions() async {
-    final response = await http.get(Uri.parse('$_baseUrl/getRegionData/$_defaultOrgCode'));
+    final response = await http.get(Uri.parse('$_baseUrl/getRegionData/$_userOrgCode'));
     if (response.statusCode == 200) {
       final Map<String, dynamic> body = jsonDecode(response.body);
       final List<dynamic> data = body['data'] ?? [];
@@ -21,7 +23,7 @@ class RegionApiService {
   static Future<RegionMaster> createRegion(RegionMaster region) async {
     final body = jsonEncode(_toJson(region));
     final response = await http.post(
-      Uri.parse('$_baseUrl/createRegion?orgCode=$_defaultOrgCode'),
+      Uri.parse('$_baseUrl/createRegion?orgCode=$_userOrgCode'),
       headers: {'Content-Type': 'application/json'},
       body: body,
     );
@@ -43,7 +45,7 @@ class RegionApiService {
 
   /// Update an existing region
   static Future<RegionMaster> updateRegion(RegionMaster region) async {
-    final url = '$_baseUrl/$_defaultOrgCode/${Uri.encodeComponent(region.regionCode)}';
+    final url = '$_baseUrl/$_userOrgCode/${Uri.encodeComponent(region.regionCode)}';
     final body = jsonEncode(_toJson(region));
     final response = await http.put(
       Uri.parse(url),
@@ -58,7 +60,7 @@ class RegionApiService {
 
   /// Delete a region
   static Future<void> deleteRegion(String regionCode) async {
-    final url = '$_baseUrl/$_defaultOrgCode/${Uri.encodeComponent(regionCode)}';
+    final url = '$_baseUrl/$_userOrgCode/${Uri.encodeComponent(regionCode)}';
     final response = await http.delete(Uri.parse(url));
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw Exception('Failed to delete region: ${response.statusCode}');
@@ -68,7 +70,7 @@ class RegionApiService {
   static RegionMaster _fromJson(Map<String, dynamic> json) {
     final id = json['id'] as Map<String, dynamic>?;
     return RegionMaster(
-      orgCode: (id?['orgCode'] ?? json['orgcode'] ?? 101).toString(),
+      orgCode: (id?['orgCode'] ?? json['orgcode'] ?? _userOrgCode).toString(),
       regionCode: (id?['regionCode'] ?? json['region_code'] ?? json['regionCode'] ?? '') as String,
       regionName: (json['region_name'] ?? json['regionName'] ?? '') as String,
       state: (json['state'] ?? '') as String,
@@ -80,13 +82,13 @@ class RegionApiService {
   static Map<String, dynamic> _toJson(RegionMaster region) {
     return {
       'id': {
-        'orgCode': _defaultOrgCode,
+        'orgCode': _userOrgCode,
         'regionCode': region.regionCode,
       },
       'region_name': region.regionName,
       'state': region.state,
       'zone': region.zone,
-      'orgcode': _defaultOrgCode,
+      'orgcode': _userOrgCode,
       'region_code': region.regionCode,
     };
   }

@@ -1,9 +1,12 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../../Login/services/auth_service 4.dart';
 import '../models/auth_models.dart';
 
 class QueueApiService {
   static const String baseUrl = 'http://localhost:8085/api/master';
+
+  static int get _userOrgCode => AuthService().currentUser?.orgCode ?? 101;
 
   /// Fetch the pending authorization queue
   static Future<List<AuthRecord>> getAuthQueue({
@@ -11,7 +14,7 @@ class QueueApiService {
     String? authSl,
   }) async {
     try {
-      final uri = Uri.parse('$baseUrl/getAuthQueueData/101');
+      final uri = Uri.parse('$baseUrl/getAuthQueueData/$_userOrgCode');
       final response = await http.get(uri);
 
       if (response.statusCode == 200) {
