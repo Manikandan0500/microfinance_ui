@@ -262,6 +262,7 @@ class _MFApiDropdownFieldState extends State<MFApiDropdownField>
     with SingleTickerProviderStateMixin {
   
   OverlayEntry? _ov;
+  bool _ovInserted = false; // tracks whether _ov is currently in the overlay
   final TextEditingController _sc = TextEditingController();
   late AnimationController _ac;
   late Animation<double> _top, _sz;
@@ -292,21 +293,32 @@ class _MFApiDropdownFieldState extends State<MFApiDropdownField>
   }
 
   @override
-  void dispose() { _rm(); _sc.dispose(); _ac.dispose(); super.dispose(); }
+  void dispose() { _rmSafe(); _sc.dispose(); _ac.dispose(); super.dispose(); }
+
+  // Safe removal: only remove if we know it was inserted
+  void _rmSafe() {
+    if (_ov != null && _ovInserted) {
+      try { _ov!.remove(); } catch (_) {}
+    }
+    _ov = null;
+    _ovInserted = false;
+  }
 
   void _rm() {
-    _ov?.remove(); _ov = null;
+    _rmSafe();
     if (mounted) setState(() => _isOpen = false);
-    _floated ? _ac.forward() : _ac.reverse();
+    if (mounted) _floated ? _ac.forward() : _ac.reverse();
   }
 
   void _open() {
     if (!widget.enabled || widget.isLoading) return;
     _rm(); _sc.clear();
+    if (!mounted) return;
     setState(() => _isOpen = true); _ac.forward();
     final rb = context.findRenderObject() as RenderBox?;
     if (rb == null) return;
-    final ov = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final overlayState = Overlay.of(context);
+    final ov = overlayState.context.findRenderObject() as RenderBox;
     final pos = rb.localToGlobal(Offset.zero, ancestor: ov);
     final sz = rb.size;
 
@@ -399,7 +411,12 @@ class _MFApiDropdownFieldState extends State<MFApiDropdownField>
         ),
       ])),
     ));
-    Overlay.of(context).insert(_ov!);
+    if (mounted) {
+      overlayState.insert(_ov!);
+      _ovInserted = true;
+    } else {
+      _ov = null;
+    }
   }
 
   @override
