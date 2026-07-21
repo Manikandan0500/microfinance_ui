@@ -51,6 +51,8 @@ class _MainShellState extends State<MainShell> {
 
   // Logged-in user
   User? _currentUser;
+  
+  late AnimationController _gradientAnimController;
 
   @override
   void initState() {
@@ -275,15 +277,7 @@ class _MainShellState extends State<MainShell> {
           Container(
             height: 60,
             decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-                colors: [
-                  Color(0xFF0A1628), // very dark navy
-                  Color(0xFF152238), // dark blue
-                  Color(0xFF1E3A5F), // medium dark blue
-                ],
-              ),
+              color: Color(0xFF1E3050), // Aaure Blue
             ),
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
@@ -368,15 +362,7 @@ class _MainShellState extends State<MainShell> {
                     width: _isSidebarHovered ? 260 : 70,
                     clipBehavior: Clip.hardEdge,
                     decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Color(0xFF0A1628), // very dark navy
-                          Color(0xFF152238), // dark blue
-                          Color(0xFF1E3A5F), // medium dark blue
-                        ],
-                      ),
+                      color: Color(0xFF1E3050), // Aaure Blue
                     ),
                     child: Material(
                       color: Colors.transparent,

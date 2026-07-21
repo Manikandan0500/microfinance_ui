@@ -51,7 +51,7 @@ class TotalRecordsCard extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF01579B),
+                  color: Color(0xFF1E3050),
                 ),
               ),
               const SizedBox(height: 2),
@@ -109,7 +109,7 @@ class ProgramFormField extends StatelessWidget {
         onChanged: onChanged,
         validator: validator ?? (isRequired ? (val) => val == null || val.isEmpty ? 'Required field' : null : null),
         style: TextStyle(
-          color: isLocked ? Colors.grey.shade700 : const Color(0xFF01579B),
+          color: isLocked ? Colors.grey.shade700 : const Color(0xFF1E3050),
           fontWeight: isLocked ? FontWeight.w500 : FontWeight.normal,
         ),
         decoration: InputDecoration(
@@ -177,7 +177,7 @@ class ProgramDropdownField extends StatelessWidget {
         onChanged: isLocked ? null : onChanged,
         validator: isRequired ? (val) => val == null || val.isEmpty ? 'Required field' : null : null,
         style: TextStyle(
-          color: isLocked ? Colors.grey.shade700 : const Color(0xFF01579B),
+          color: isLocked ? Colors.grey.shade700 : const Color(0xFF1E3050),
         ),
         decoration: InputDecoration(
           labelText: '$label${isRequired ? ' *' : ''}',
@@ -265,7 +265,7 @@ class ProgramDateField extends StatelessWidget {
                 }
               },
         style: TextStyle(
-          color: isLocked ? Colors.grey.shade700 : const Color(0xFF01579B),
+          color: isLocked ? Colors.grey.shade700 : const Color(0xFF1E3050),
         ),
         decoration: InputDecoration(
           labelText: '$label${isRequired ? ' *' : ''}',

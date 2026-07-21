@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'dart:async';
 import 'services/rate_revision_api_service.dart';
 import 'models/rate_revision_history.dart';
-import 'shared_widgets.dart';
+import 'mf_shared_widgets.dart';
 import '../am_masters/services/auth_service.dart';
 
 class RateRevisionHistoryScreen extends StatefulWidget {
@@ -12,26 +14,28 @@ class RateRevisionHistoryScreen extends StatefulWidget {
 }
 
 class _RateRevisionHistoryScreenState extends State<RateRevisionHistoryScreen> {
-  List<RateRevisionHistory> _rateRevisions = [];
-  bool _isLoading = false;
+  MFView _view = MFView.list;
+  RateRevisionHistory? _sel;
+  bool _delConfirmed = false;
+  String _search = '';
+  bool _isLoading = true;
+  String? _loadError;
+  Timer? _debounce;
+  int _currentPage = 1;
+  final int _itemsPerPage = 10;
+  
+  List<RateRevisionHistory> _data = [];
   String _currentOrgCode = '1';
-  String _viewMode = 'GRID'; // GRID, VIEW, CREATE, EDIT, DELETE
-  RateRevisionHistory? _selectedRecord;
-  String _searchQuery = '';
 
-  // Controllers
   final _formKey = GlobalKey<FormState>();
-  final _orgCodeController = TextEditingController();
-  String? _selectedProductCode;
+  final _orgCodeCtrl = TextEditingController();
+  final _productCodeCtrl = TextEditingController();
   DateTime _selectedEffDate = DateTime.now();
-  final _revisedRateController = TextEditingController();
-  final _benchmarkRateCodeController = TextEditingController();
-  final _spreadPctController = TextEditingController();
-  final _revisionReasonController = TextEditingController();
+  final _revisedRateCtrl = TextEditingController();
+  final _benchmarkRateCodeCtrl = TextEditingController();
+  final _spreadPctCtrl = TextEditingController();
+  final _revisionReasonCtrl = TextEditingController();
   bool _revisionStatus = true;
-
-  // Delete confirm state
-  bool _deleteConfirmed = false;
 
   @override
   void initState() {
@@ -45,668 +49,556 @@ class _RateRevisionHistoryScreenState extends State<RateRevisionHistoryScreen> {
       _currentOrgCode = user.orgCode.toString();
     }
     _resetForm();
-    await _loadRevisions();
+    await _fetchData();
   }
 
-  Future<void> _loadRevisions() async {
-    setState(() => _isLoading = true);
+  Future<void> _fetchData() async {
+    if (!mounted) return;
+    setState(() { _isLoading = true; _loadError = null; });
     try {
       final revisions = await RateRevisionApiService.getRevisions(_currentOrgCode);
-      if (mounted) setState(() => _rateRevisions = revisions);
+      if (mounted) {
+        setState(() {
+          _data = revisions;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+        setState(() {
+          _isLoading = false;
+          _loadError = e.toString();
+        });
       }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  List<RateRevisionHistory> get _filtered {
+    if (_search.isEmpty) return _data;
+    final q = _search.toLowerCase();
+    return _data.where((r) {
+      return r.productCode.toLowerCase().contains(q) || 
+             r.revisionReason.toLowerCase().contains(q);
+    }).toList();
+  }
+
+  void _go(MFView v, [RateRevisionHistory? r]) {
+    setState(() {
+      _view = v;
+      _sel = r;
+      _delConfirmed = false;
+      if (v == MFView.list) {
+        _search = '';
+        _currentPage = 1;
+      }
+    });
+    if (v == MFView.list) {
+      _fetchData();
+    } else if (v == MFView.create) {
+      _resetForm();
+    } else if (v == MFView.edit || v == MFView.view || v == MFView.delete) {
+      if (r != null) _loadRecord(r);
+    }
+  }
+
+  void _toast(String msg, {bool isError = false}) => MFToast.show(context, msg, isError: isError);
+
+  void _resetForm() {
+    _orgCodeCtrl.text = _currentOrgCode;
+    _productCodeCtrl.clear();
+    _selectedEffDate = DateTime.now();
+    _revisedRateCtrl.clear();
+    _benchmarkRateCodeCtrl.text = 'MCLR-6M';
+    _spreadPctCtrl.clear();
+    _revisionReasonCtrl.clear();
+    _revisionStatus = true;
+  }
+
+  void _loadRecord(RateRevisionHistory r) {
+    _orgCodeCtrl.text = r.orgCode;
+    _productCodeCtrl.text = r.productCode;
+    _selectedEffDate = r.effDate;
+    _revisedRateCtrl.text = r.revisedRate.toString();
+    _benchmarkRateCodeCtrl.text = r.benchmarkRateCode;
+    _spreadPctCtrl.text = r.spreadPct.toString();
+    _revisionReasonCtrl.text = r.revisionReason;
+    _revisionStatus = r.revisionStatus;
+  }
+
+  Future<void> _saveRecord(bool isEdit) async {
+    if (_formKey.currentState!.validate()) {
+      final record = RateRevisionHistory(
+        orgCode: _orgCodeCtrl.text,
+        productCode: _productCodeCtrl.text,
+        effDate: _selectedEffDate,
+        revisedRate: double.tryParse(_revisedRateCtrl.text) ?? 0.0,
+        benchmarkRateCode: _benchmarkRateCodeCtrl.text,
+        spreadPct: double.tryParse(_spreadPctCtrl.text) ?? 0.0,
+        revisionReason: _revisionReasonCtrl.text,
+        revisionStatus: _revisionStatus,
+      );
+
+      setState(() => _isLoading = true);
+      try {
+        if (isEdit) {
+          await RateRevisionApiService.updateRevision(record);
+          showSuccessDialog(context, 'Rate Revision updated successfully!', onConfirm: () => _go(MFView.list));
+        } else {
+          await RateRevisionApiService.createRevision(record);
+          showSuccessDialog(context, 'Rate Revision created successfully!', onConfirm: () => _go(MFView.list));
+        }
+      } catch (e) {
+        _toast(e.toString().replaceFirst('Exception: ', ''), isError: true);
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _confirmDelete() async {
+    if (_sel != null) {
+      _toast('Delete not supported by API', isError: true);
+      _go(MFView.list);
     }
   }
 
   @override
   void dispose() {
-    _orgCodeController.dispose();
-    _revisedRateController.dispose();
-    _benchmarkRateCodeController.dispose();
-    _spreadPctController.dispose();
-    _revisionReasonController.dispose();
+    _debounce?.cancel();
+    _orgCodeCtrl.dispose();
+    _productCodeCtrl.dispose();
+    _revisedRateCtrl.dispose();
+    _benchmarkRateCodeCtrl.dispose();
+    _spreadPctCtrl.dispose();
+    _revisionReasonCtrl.dispose();
     super.dispose();
   }
 
-  void _resetForm() {
-    _orgCodeController.text = _currentOrgCode;
-    _selectedProductCode = null;
-    _selectedEffDate = DateTime.now();
-    _revisedRateController.clear();
-    _benchmarkRateCodeController.text = 'MCLR-6M';
-    _spreadPctController.clear();
-    _revisionReasonController.clear();
-    _revisionStatus = true;
-    _deleteConfirmed = false;
-  }
-
-  void _loadRecord(RateRevisionHistory record) {
-    _orgCodeController.text = record.orgCode;
-    _selectedProductCode = record.productCode;
-    _selectedEffDate = record.effDate;
-    _revisedRateController.text = record.revisedRate.toString();
-    _benchmarkRateCodeController.text = record.benchmarkRateCode;
-    _spreadPctController.text = record.spreadPct.toString();
-    _revisionReasonController.text = record.revisionReason;
-    _revisionStatus = record.revisionStatus;
-    _deleteConfirmed = false;
-  }
-
-  Future<void> _saveRecord() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
-      try {
-        final record = RateRevisionHistory(
-          orgCode: _orgCodeController.text,
-          productCode: _selectedProductCode ?? '',
-          effDate: _selectedEffDate,
-          revisedRate: double.tryParse(_revisedRateController.text) ?? 0.0,
-          benchmarkRateCode: _benchmarkRateCodeController.text,
-          spreadPct: double.tryParse(_spreadPctController.text) ?? 0.0,
-          revisionReason: _revisionReasonController.text,
-          revisionStatus: _revisionStatus,
-        );
-
-        if (_viewMode == 'CREATE') {
-          await RateRevisionApiService.createRevision(record);
-          if (mounted) _showSnackbar('Revision created successfully!');
-        } else if (_viewMode == 'EDIT') {
-          await RateRevisionApiService.updateRevision(record);
-          if (mounted) _showSnackbar('Revision updated successfully!');
-        }
-        
-        await _loadRevisions();
-        if (mounted) setState(() => _viewMode = 'GRID');
-      } catch (e) {
-        if (mounted) _showSnackbar(e.toString().replaceFirst('Exception: ', ''), isError: true);
-      } finally {
-        if (mounted) setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  void _showSnackbar(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              isError ? Icons.error_outline : Icons.check_circle_outline,
-              color: Colors.white,
-            ),
-            const SizedBox(width: 10),
-            Expanded(child: Text(message)),
-          ],
-        ),
-        backgroundColor: isError ? Colors.red.shade700 : Colors.green.shade700,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        margin: const EdgeInsets.all(16),
-      ),
-    );
-  }
-
-  void _confirmDelete() {
-    if (_selectedRecord != null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Delete not supported by API')));
-      setState(() {
-        _viewMode = 'GRID';
-        _selectedRecord = null;
-      });
-    }
-  }
-
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildScreenHeader(),
-          const SizedBox(height: 24),
-          Expanded(
-            child: SingleChildScrollView(
-              child: _buildMainContent(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: const Color(0xFFF1F5F9),
+    body: switch (_view) {
+      MFView.list   => _list(),
+      MFView.create => _form(isEdit: false),
+      MFView.view   => _form(isView: true),
+      MFView.edit   => _form(isEdit: true),
+      MFView.delete => _delete(),
+    },
+  );
 
-  Widget _buildScreenHeader() {
-    String title = 'Rate Revision History';
-    if (_viewMode == 'CREATE') title = 'Add New Rate Revision';
-    if (_viewMode == 'EDIT') title = 'Edit Rate Revision';
-    if (_viewMode == 'VIEW') title = 'View Rate Revision';
-    if (_viewMode == 'DELETE') title = 'Delete Rate Revision';
+  // ── List View ──────────────────────────────────────────────────────────────
+  Widget _list() {
+    final list = _filtered;
+    final int totalPages = (list.length / _itemsPerPage).ceil();
+    final int startIndex = (_currentPage - 1) * _itemsPerPage;
+    final int endIndex = (startIndex + _itemsPerPage > list.length) ? list.length : startIndex + _itemsPerPage;
+    final pagedList = list.isEmpty ? <RateRevisionHistory>[] : list.sublist(startIndex, endIndex);
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF01579B),
-          ),
-        ),
-        if (_viewMode != 'GRID')
-          StandardButton(
-            label: 'Back',
-            isPrimary: false,
-            onPressed: () {
-              setState(() {
-                _viewMode = 'GRID';
-              });
-            },
-          ),
-      ],
-    );
-  }
+    final int activeCount = _data.where((e) => e.revisionStatus).length;
+    final int inactiveCount = _data.length - activeCount;
 
-  Widget _buildMainContent() {
-    switch (_viewMode) {
-      case 'CREATE':
-      case 'EDIT':
-      case 'VIEW':
-        return _buildForm();
-      case 'DELETE':
-        return _buildDeleteConfirmation();
-      case 'GRID':
-      default:
-        return _buildGrid();
-    }
-  }
-
-  Widget _buildGrid() {
-    final filteredList = _rateRevisions.where((r) {
-      final prod = r.productCode.toLowerCase();
-      final reason = r.revisionReason.toLowerCase();
-      final query = _searchQuery.toLowerCase();
-      return prod.contains(query) || reason.contains(query);
-    }).toList();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            TotalRecordsCard(
-              count: _rateRevisions.length,
-              label: 'Total Rate Revisions',
-              icon: Icons.rate_review,
-            ),
-            Row(
-              children: [
-                Container(
-                  width: 250,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.grey.shade300),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Row(
-                    children: [
-                      Icon(Icons.search, color: Colors.grey.shade500),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          onChanged: (val) {
-                            setState(() {
-                              _searchQuery = val;
-                            });
-                          },
-                          decoration: const InputDecoration(
-                            border: InputBorder.none,
-                            hintText: 'Search revisions...',
-                            isDense: true,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 16),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    _resetForm();
-                    setState(() {
-                      _viewMode = 'CREATE';
-                    });
-                  },
-                  icon: const Icon(Icons.add, color: Colors.white),
-                  label: const Text('New Revision', style: TextStyle(fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0288D1),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-
-        Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey.shade200),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.02),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                decoration: const BoxDecoration(
-                  color: Color(0xFF0288D1),
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(16),
-                    topRight: Radius.circular(16),
-                  ),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                child: const Row(
-                  children: [
-                    Expanded(child: Text('PRODUCT CODE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
-                    Expanded(child: Text('EFFECTIVE DATE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
-                    Expanded(child: Text('REVISED RATE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
-                    Expanded(child: Text('BENCHMARK CODE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
-                    Expanded(child: Text('SPREAD %', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
-                    Expanded(flex: 2, child: Text('REASON', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
-                    Expanded(child: Text('STATUS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
-                    SizedBox(width: 140, child: Text('ACTIONS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold), textAlign: TextAlign.center)),
-                  ],
-                ),
-              ),
-
-              if (filteredList.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(32.0),
-                  child: Center(child: Text('No records found', style: TextStyle(color: Colors.grey))),
-                )
-              else
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: filteredList.length,
-                  itemBuilder: (context, idx) {
-                    final item = filteredList[idx];
-                    final isEven = idx % 2 == 0;
-                    final dateStr = '${item.effDate.day.toString().padLeft(2, '0')}-${item.effDate.month.toString().padLeft(2, '0')}-${item.effDate.year}';
-                    return Container(
-                      color: isEven ? Colors.white : const Color(0xFFF8F9FA),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      child: Row(
-                        children: [
-                          Expanded(child: Text(item.productCode)),
-                          Expanded(child: Text(dateStr, style: const TextStyle(fontWeight: FontWeight.bold))),
-                          Expanded(child: Text('${item.revisedRate}%')),
-                          Expanded(child: Text(item.benchmarkRateCode)),
-                          Expanded(child: Text('${item.spreadPct}%')),
-                          Expanded(flex: 2, child: Text(item.revisionReason)),
-                          Expanded(child: Align(alignment: Alignment.centerLeft, child: StatusPill(status: item.revisionStatus))),
-                          SizedBox(
-                            width: 140,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                ActionIconBtn(
-                                  icon: Icons.visibility_outlined,
-                                  color: Colors.grey,
-                                  onTap: () {
-                                    _loadRecord(item);
-                                    setState(() {
-                                      _viewMode = 'VIEW';
-                                      _selectedRecord = item;
-                                    });
-                                  },
-                                ),
-                                ActionIconBtn(
-                                  icon: Icons.edit_outlined,
-                                  color: const Color(0xFF0288D1),
-                                  onTap: () {
-                                    _loadRecord(item);
-                                    setState(() {
-                                      _viewMode = 'EDIT';
-                                      _selectedRecord = item;
-                                    });
-                                  },
-                                ),
-                                ActionIconBtn(
-                                  icon: Icons.delete_outline,
-                                  color: Colors.red,
-                                  onTap: () {
-                                    _loadRecord(item);
-                                    setState(() {
-                                      _viewMode = 'DELETE';
-                                      _selectedRecord = item;
-                                    });
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildForm() {
-    final isView = _viewMode == 'VIEW';
-    final isEdit = _viewMode == 'EDIT';
-
-    // Since we don't have LoanProduct API loading in this screen yet, we will just use a text field for product code
-    // Or we could fetch it, but for simplicity we'll allow free-text input if the list is empty.
-
-    return Form(
-      key: _formKey,
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Rate Revision Details',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF01579B)),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      isView ? 'View-only details for this record' : 'Fill all required fields marked with *',
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                    ),
-                  ],
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: isView
-                        ? Colors.grey.shade100
-                        : isEdit
-                            ? const Color(0xFFFFF3E0)
-                            : const Color(0xFFE3F2FD),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    isView
-                        ? 'VIEW RECORD'
-                        : isEdit
-                            ? 'EDIT MODE'
-                            : 'NEW RECORD',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: isView
-                          ? Colors.grey.shade700
-                          : isEdit
-                              ? Colors.orange.shade800
-                              : const Color(0xFF1E88E5),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const Divider(height: 32),
-
-            if (isEdit) const YellowNoticeBar(),
-
-            Wrap(
-              spacing: 24,
-              runSpacing: 8,
-              children: [
-                SizedBox(
-                  width: 250,
-                  child: ProgramFormField(
-                    label: 'Product Code',
-                    controller: TextEditingController(text: _selectedProductCode)
-                      ..addListener(() {
-                        _selectedProductCode = _selectedProductCode;
-                      }),
-                    prefixIcon: Icons.shopping_basket,
-                    isRequired: true,
-                    isLocked: isEdit || isView,
-                    onChanged: (val) {
-                      _selectedProductCode = val;
-                    },
-                  ),
-                ),
-                SizedBox(
-                  width: 250,
-                  child: ProgramDateField(
-                    label: 'Effective Date',
-                    selectedDate: _selectedEffDate,
-                    prefixIcon: Icons.calendar_today,
-                    isRequired: true,
-                    isLocked: isEdit || isView,
-                    onDateSelected: (date) {
-                      setState(() {
-                        _selectedEffDate = date;
-                      });
-                    },
-                  ),
-                ),
-                SizedBox(
-                  width: 250,
-                  child: ProgramFormField(
-                    label: 'Revised Rate (%)',
-                    controller: _revisedRateController,
-                    prefixIcon: Icons.percent,
-                    isRequired: true,
-                    isLocked: isView,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  ),
-                ),
-                SizedBox(
-                  width: 250,
-                  child: ProgramFormField(
-                    label: 'Benchmark Rate Code',
-                    controller: _benchmarkRateCodeController,
-                    prefixIcon: Icons.show_chart,
-                    isRequired: true,
-                    isLocked: isView,
-                  ),
-                ),
-                SizedBox(
-                  width: 250,
-                  child: ProgramFormField(
-                    label: 'Spread (%)',
-                    controller: _spreadPctController,
-                    prefixIcon: Icons.trending_up,
-                    isRequired: true,
-                    isLocked: isView,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  ),
-                ),
-                SizedBox(
-                  width: 250,
-                  child: ProgramFormField(
-                    label: 'Revision Reason',
-                    controller: _revisionReasonController,
-                    prefixIcon: Icons.question_answer_outlined,
-                    isLocked: isView,
-                  ),
-                ),
-                SizedBox(
-                  width: 250,
-                  child: ProgramStatusToggle(
-                    value: _revisionStatus,
-                    isLocked: isView,
-                    onChanged: (val) {
-                      setState(() {
-                        _revisionStatus = val;
-                      });
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 32),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                StandardButton(
-                  label: isView ? 'Close' : 'Cancel',
-                  isPrimary: false,
-                  onPressed: () {
-                    setState(() {
-                      _viewMode = 'GRID';
-                    });
-                  },
-                ),
-                if (!isView) ...[
-                  const SizedBox(width: 16),
-                  StandardButton(
-                    label: isEdit ? 'Save Changes' : 'Create Record',
-                    isPrimary: true,
-                    onPressed: _saveRecord,
-                  ),
-                ],
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDeleteConfirmation() {
-    final dateStr = _selectedRecord != null
-        ? '${_selectedRecord!.effDate.day.toString().padLeft(2, '0')}-${_selectedRecord!.effDate.month.toString().padLeft(2, '0')}-${_selectedRecord!.effDate.year}'
-        : '';
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const RedDeleteBanner(),
-          const SizedBox(height: 16),
-
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _pageHeader(title: 'Rate Revision History'),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          MFActiveInactiveSummary(activeCount: activeCount, inactiveCount: inactiveCount),
+        ]),
+        const SizedBox(height: 16),
+        Row(mainAxisAlignment: MainAxisAlignment.end, children: [
           Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8F9FA),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
+            width: 280, height: 40,
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFE2E8F0))),
+            child: TextField(
+              onChanged: (v) {
+                if (_debounce?.isActive ?? false) _debounce!.cancel();
+                _debounce = Timer(const Duration(milliseconds: 300), () => setState(() { _search = v; _currentPage = 1; }));
+              },
+              style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)),
+              decoration: const InputDecoration(
+                hintText: 'Search product/reason...',
+                hintStyle: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                prefixIcon: Icon(Icons.search_rounded, size: 16, color: Color(0xFF64748B)),
+                border: InputBorder.none, contentPadding: EdgeInsets.symmetric(vertical: 12), isDense: true,
+              ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'RECORD TO BE DELETED',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade600,
-                    letterSpacing: 1.1,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _buildDeleteField('Product Code:', _selectedRecord?.productCode ?? ''),
-                _buildDeleteField('Effective Date:', dateStr),
-                _buildDeleteField('Revised Rate:', '${_selectedRecord?.revisedRate}%'),
-                _buildDeleteField('Revision Reason:', _selectedRecord?.revisionReason ?? ''),
+          ),
+          const SizedBox(width: 12),
+          _fBtn('New Revision', Icons.add_rounded, const Color(0xFF1E3050), Colors.white, const Color(0xFF1E3050), onTap: () => _go(MFView.create)),
+        ]),
+        const SizedBox(height: 16),
+        _card(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: const BoxDecoration(
+              color: Color(0xFF1E3050),
+              border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+            ),
+            child: Row(children: [
+              Expanded(child: _colHdr('PRODUCT')),
+              Expanded(child: _colHdr('EFFECTIVE DATE')),
+              Expanded(child: _colHdr('REVISED RATE')),
+              Expanded(child: _colHdr('BENCHMARK')),
+              Expanded(child: _colHdr('SPREAD %')),
+              Expanded(flex: 2, child: _colHdr('REASON')),
+              Expanded(child: _colHdr('STATUS')),
+              const SizedBox(width: 110, child: Text('ACTIONS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white), textAlign: TextAlign.center)),
+            ]),
+          ),
+          if (_isLoading)
+            const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator(color: Color(0xFF1E3050))))
+          else if (_loadError != null)
+            Padding(padding: const EdgeInsets.all(40), child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.error_outline_rounded, size: 48, color: Color(0xFFDC2626)), const SizedBox(height: 16),
+              const Text('Failed to load data', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF1E293B))), const SizedBox(height: 8),
+              Text(_loadError!, style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)), textAlign: TextAlign.center),
+            ])))
+          else if (pagedList.isEmpty)
+            const Padding(padding: EdgeInsets.all(40), child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.inbox_rounded, size: 48, color: Color(0xFFCBD5E1)), const SizedBox(height: 16),
+              Text('No records found', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Color(0xFF64748B))),
+            ])))
+          else
+            ListView.separated(
+              shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+              itemCount: pagedList.length,
+              separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFF1F5F9)),
+              itemBuilder: (_, i) {
+                final r = pagedList[i];
+                return Container(
+                  color: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  child: Row(children: [
+                    Expanded(child: Text(r.productCode, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)))),
+                    Expanded(child: Text('${r.effDate.day.toString().padLeft(2, '0')}-${r.effDate.month.toString().padLeft(2, '0')}-${r.effDate.year}', style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)))),
+                    Expanded(child: Text('${r.revisedRate}%', style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)))),
+                    Expanded(child: Text(r.benchmarkRateCode, style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)))),
+                    Expanded(child: Text('${r.spreadPct}%', style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)))),
+                    Expanded(flex: 2, child: Text(r.revisionReason, style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    Expanded(child: Align(alignment: Alignment.centerLeft, child: _statusBadge(r.revisionStatus))),
+                    SizedBox(width: 110, child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      _rowBtn(Icons.visibility_rounded, const Color(0xFF64748B), () => _go(MFView.view, r)), const SizedBox(width: 6),
+                      _rowBtn(Icons.edit_rounded, const Color(0xFF1E3050), () => _go(MFView.edit, r)), const SizedBox(width: 6),
+                      _rowBtn(Icons.delete_rounded, const Color(0xFFDC2626), () => _go(MFView.delete, r)),
+                    ])),
+                  ]),
+                );
+              },
+            ),
+        ])),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            MFPaginationControls(
+              currentPage: _currentPage,
+              totalPages: totalPages,
+              onPrev: _currentPage > 1 ? () => setState(() => _currentPage--) : null,
+              onNext: _currentPage < totalPages ? () => setState(() => _currentPage++) : null,
+            ),
+          ],
+        ),
+      ]),
+    );
+  }
+
+  Widget _form({bool isEdit = false, bool isView = false}) {
+    return Column(children: [
+      Expanded(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _pageHeader(
+              title: isView ? 'View Rate Revision' : (isEdit ? 'Edit Rate Revision' : 'Create Rate Revision'),
+              actions: [
+                _fBtn('Back', Icons.arrow_back_rounded, const Color(0xFF1E3050), Colors.white, const Color(0xFF1E3050), onTap: () => _go(MFView.list)),
               ],
             ),
+            if (isEdit)
+              Container(
+                margin: const EdgeInsets.only(bottom: 20),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: const Color(0xFFFFFBEB), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFFDE68A))),
+                child: const Row(children: [
+                  Icon(Icons.warning_amber_rounded, size: 20, color: Color(0xFFB45309)), const SizedBox(width: 10),
+                  Expanded(child: Text('Editing an existing revision updates historical rate data.', style: TextStyle(fontSize: 13, color: Color(0xFFB45309)))),
+                ]),
+              ),
+            _card(child: Form(key: _formKey, child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                _secHdr('REVISION DETAILS'),
+                const SizedBox(height: 16),
+                Wrap(spacing: 24, runSpacing: 24, children: [
+                  SizedBox(width: 300, child: MFFloatingLabelField(
+                    label: 'Product Code', ctrl: _productCodeCtrl, icon: Icons.shopping_basket, required: !isView,
+                    readOnly: isEdit || isView, showLock: isEdit || isView,
+                  )),
+                  SizedBox(width: 300, child: InkWell(
+                    onTap: (isEdit || isView) ? null : () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: _selectedEffDate,
+                        firstDate: DateTime(2000),
+                        lastDate: DateTime(2100),
+                      );
+                      if (picked != null) {
+                        setState(() => _selectedEffDate = picked);
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: (isEdit || isView) ? const Color(0xFFF8FAFC) : Colors.white,
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(children: [
+                        const Icon(Icons.calendar_today, size: 20, color: Color(0xFF64748B)),
+                        const SizedBox(width: 12),
+                        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          const Text('Effective Date *', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF1E3050))),
+                          const SizedBox(height: 4),
+                          Text('${_selectedEffDate.day.toString().padLeft(2, '0')}-${_selectedEffDate.month.toString().padLeft(2, '0')}-${_selectedEffDate.year}', style: TextStyle(fontSize: 14, color: (isEdit || isView) ? const Color(0xFF64748B) : const Color(0xFF1E293B))),
+                        ]),
+                      ]),
+                    ),
+                  )),
+                ]),
+                const SizedBox(height: 32),
+                _secHdr('RATE INFORMATION'),
+                const SizedBox(height: 16),
+                Wrap(spacing: 24, runSpacing: 24, children: [
+                  SizedBox(width: 300, child: MFFloatingLabelField(
+                    label: 'Revised Rate (%)', ctrl: _revisedRateCtrl, icon: Icons.percent, required: !isView,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    readOnly: isView, showLock: isView,
+                  )),
+                  SizedBox(width: 300, child: MFFloatingLabelField(
+                    label: 'Benchmark Rate Code', ctrl: _benchmarkRateCodeCtrl, icon: Icons.show_chart, required: !isView,
+                    readOnly: isView, showLock: isView,
+                  )),
+                  SizedBox(width: 300, child: MFFloatingLabelField(
+                    label: 'Spread (%)', ctrl: _spreadPctCtrl, icon: Icons.trending_up, required: !isView,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    readOnly: isView, showLock: isView,
+                  )),
+                ]),
+                const SizedBox(height: 32),
+                _secHdr('ADDITIONAL INFO'),
+                const SizedBox(height: 16),
+                Wrap(spacing: 24, runSpacing: 24, children: [
+                  SizedBox(width: 624, child: MFFloatingLabelField(
+                    label: 'Revision Reason', ctrl: _revisionReasonCtrl, icon: Icons.question_answer_outlined,
+                    readOnly: isView, showLock: isView,
+                  )),
+                  Container(
+                    width: 300, height: 44,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE2E8F0))),
+                    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                      const Text('Status', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B))),
+                      Switch(
+                        value: _revisionStatus,
+                        onChanged: !isView ? ((v) => setState(() => _revisionStatus = v)) : null,
+                        activeColor: const Color(0xFF1E3050),
+                        activeTrackColor: const Color(0xFFE3F2FD),
+                      ),
+                    ]),
+                  ),
+                ]),
+              ]),
+            ))),
+          ]),
+        ),
+      ),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -4))]),
+        child: Row(children: [
+          const Spacer(),
+          if (!isView) ...[
+            const SizedBox(width: 12),
+            _fBtn(isEdit ? 'Save Changes' : 'Create Record', isEdit ? Icons.save_rounded : Icons.check_circle_rounded, const Color(0xFF1E3050), Colors.white, const Color(0xFF1E3050), onTap: _isLoading ? null : () => _saveRecord(isEdit)),
+          ]
+        ]),
+      ),
+    ]);
+  }
+
+    // ── Delete View ────────────────────────────────────────────────────────────
+  Widget _delete() {
+    if (_sel == null) return const SizedBox();
+    final r = _sel!;
+    final dateStr = '${r.effDate.day.toString().padLeft(2, '0')}-${r.effDate.month.toString().padLeft(2, '0')}-${r.effDate.year}';
+    
+    return Center(child: Container(
+      width: 500, margin: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 24, offset: const Offset(0, 8))]),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+          padding: const EdgeInsets.all(24), decoration: const BoxDecoration(color: Color(0xFFFEF2F2), borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+          child: Row(children: [
+            Container(width: 40, height: 40, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626))),
+            const SizedBox(width: 16),
+            const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Delete Record', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFFDC2626))),
+              Text('This action cannot be undone.', style: TextStyle(fontSize: 13, color: Color(0xFF991B1B))),
+            ])),
+          ]),
+        ),
+        Padding(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+            padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE2E8F0))),
+            child: Column(children: [
+              _delRow('Product Code', r.productCode),
+              const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider(height: 1, color: Color(0xFFE2E8F0))),
+              _delRow('Effective Date', dateStr),
+              const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider(height: 1, color: Color(0xFFE2E8F0))),
+              _delRow('Revised Rate', '${r.revisedRate}%'),
+              const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider(height: 1, color: Color(0xFFE2E8F0))),
+              _delRow('Reason', r.revisionReason),
+            ]),
           ),
           const SizedBox(height: 24),
-
-          DeleteConfirmationBox(
-            checked: _deleteConfirmed,
-            onChanged: (val) {
-              setState(() {
-                _deleteConfirmed = val ?? false;
-              });
-            },
-          ),
-
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              StandardButton(
-                label: 'Cancel',
-                isPrimary: false,
-                onPressed: () {
-                  setState(() {
-                    _viewMode = 'GRID';
-                  });
-                },
+          Row(children: [
+            SizedBox(
+              width: 24, height: 24,
+              child: Checkbox(
+                value: _delConfirmed,
+                onChanged: (v) => setState(() => _delConfirmed = v ?? false),
+                activeColor: const Color(0xFFDC2626),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
               ),
-              const SizedBox(width: 16),
-              StandardButton(
-                label: 'Confirm Delete',
-                isPrimary: true,
-                isDestructive: true,
-                onPressed: _deleteConfirmed ? _confirmDelete : null,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDeleteField(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 180,
-            child: Text(
-              label,
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF01579B)),
             ),
-          ),
-          Text(value, style: const TextStyle(color: Colors.black87)),
-        ],
-      ),
-    );
+            const SizedBox(width: 12),
+            const Expanded(child: Text('I understand that deleting this record is permanent.', style: TextStyle(fontSize: 13, color: Color(0xFF1E293B)))),
+          ]),
+        ])),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16), decoration: const BoxDecoration(color: Color(0xFFF8FAFC), borderRadius: BorderRadius.vertical(bottom: Radius.circular(16))),
+          child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+            
+            const SizedBox(width: 12),
+            _fBtn('Confirm Delete', Icons.delete_rounded, const Color(0xFFDC2626), Colors.white, const Color(0xFFDC2626), onTap: _delConfirmed ? _confirmDelete : null),
+          ]),
+        ),
+      ]),
+    ));
   }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  Widget _pageHeader({required String title, List<Widget> actions = const []}) =>
+      Padding(
+        padding: const EdgeInsets.only(bottom: 20),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          Expanded(child: Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Color(0xFF1E293B), letterSpacing: -0.3))),
+          ...actions,
+        ]),
+      );
+
+  Widget _card({required Widget child}) => Container(
+    width: double.infinity,
+    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFFE2E8F0))),
+    clipBehavior: Clip.antiAlias,
+    child: child,
+  );
+
+  Widget _statCard(String num, String lbl, Color numC, Color bg, Color border, IconData icon, Color iconC) =>
+      Container(
+        width: 180,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: border)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Container(width: 36, height: 36, decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(9)),
+            child: Icon(icon, size: 18, color: iconC)),
+          const SizedBox(width: 10),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+            Text(num, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: numC, height: 1.1)),
+            Text(lbl, style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+          ]),
+        ]),
+      );
+
+  Widget _hBtn(String label, {Color bg = Colors.white, Color fg = const Color(0xFF64748B), Color border = const Color(0xFFE2E8F0), IconData? icon, VoidCallback? onTap}) =>
+      MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+            decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10), border: Border.all(color: border, width: 1.5)),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              if (icon != null) ...[Icon(icon, size: 15, color: fg), const SizedBox(width: 6)],
+              Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: fg)),
+            ]),
+          ),
+        ),
+      );
+
+  Widget _fBtn(String label, IconData icon, Color bg, Color fg, Color border, {VoidCallback? onTap}) =>
+      MouseRegion(
+        cursor: onTap == null ? SystemMouseCursors.forbidden : SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
+            decoration: BoxDecoration(color: onTap == null ? bg.withOpacity(0.5) : bg, borderRadius: BorderRadius.circular(10), border: Border.all(color: onTap == null ? border.withOpacity(0.5) : border, width: 1.5)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(icon, size: 15, color: fg), const SizedBox(width: 6),
+              Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: fg)),
+            ]),
+          ),
+        ),
+      );
+
+  Widget _rowBtn(IconData icon, Color color, VoidCallback onTap) =>
+      MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: 30, height: 30,
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFE2E8F0))),
+            child: Icon(icon, size: 14, color: color),
+          ),
+        ),
+      );
+
+  Widget _secHdr(String t) => Padding(
+    padding: const EdgeInsets.fromLTRB(0, 8, 0, 4),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Divider(height: 1, color: Color(0xFFF1F5F9)),
+      const SizedBox(height: 10),
+      Text(t, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF1E3050), letterSpacing: 1)),
+    ]),
+  );
+
+  Widget _statusBadge(bool active) => IntrinsicWidth(
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(color: active ? const Color(0xFFDCFCE7) : const Color(0xFFFEF2F2), borderRadius: BorderRadius.circular(20), border: Border.all(color: active ? const Color(0xFF16A34A).withOpacity(0.3) : const Color(0xFFDC2626).withOpacity(0.3))),
+      child: Row(children: [
+        Container(width: 6, height: 6, decoration: BoxDecoration(color: active ? const Color(0xFF16A34A) : const Color(0xFFDC2626), shape: BoxShape.circle)),
+        const SizedBox(width: 6),
+        Text(active ? 'Active' : 'Inactive', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: active ? const Color(0xFF16A34A) : const Color(0xFFDC2626))),
+      ]),
+    ),
+  );
+
+  Widget _colHdr(String label) => Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white));
+
+  Widget _info(String lbl, String val) => SizedBox(
+    width: 200,
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(lbl, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
+      const SizedBox(height: 4),
+      Text(val.isEmpty ? '—' : val, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF1E293B))),
+    ]),
+  );
+
+  Widget _delRow(String lbl, String val) => Row(children: [
+    SizedBox(width: 120, child: Text(lbl, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B)))),
+    Expanded(child: Text(val.isEmpty ? '—' : val, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF1E293B)))),
+  ]);
 }
