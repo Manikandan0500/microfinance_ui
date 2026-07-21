@@ -260,7 +260,7 @@ class MFApiDropdownField extends StatefulWidget {
 
 class _MFApiDropdownFieldState extends State<MFApiDropdownField>
     with SingleTickerProviderStateMixin {
-  final GlobalKey _key = GlobalKey();
+  
   OverlayEntry? _ov;
   final TextEditingController _sc = TextEditingController();
   late AnimationController _ac;
@@ -304,7 +304,7 @@ class _MFApiDropdownFieldState extends State<MFApiDropdownField>
     if (!widget.enabled || widget.isLoading) return;
     _rm(); _sc.clear();
     setState(() => _isOpen = true); _ac.forward();
-    final rb = _key.currentContext?.findRenderObject() as RenderBox?;
+    final rb = context.findRenderObject() as RenderBox?;
     if (rb == null) return;
     final ov = Overlay.of(context).context.findRenderObject() as RenderBox;
     final pos = rb.localToGlobal(Offset.zero, ancestor: ov);
@@ -419,7 +419,7 @@ class _MFApiDropdownFieldState extends State<MFApiDropdownField>
           child: MouseRegion(
             cursor: disabled ? SystemMouseCursors.forbidden : SystemMouseCursors.click,
             child: Container(
-              key: _key, height: 44,
+              height: 44,
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),

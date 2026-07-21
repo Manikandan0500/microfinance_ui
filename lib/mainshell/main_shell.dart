@@ -28,6 +28,15 @@ import '../am_masters/screens/menu_master_screen.dart';
 import '../am_masters/config/app_config.dart';
 import '../Login/services/auth_service 4.dart';
 import '../am_masters/models/user.dart';
+import '../programs/client_group_master_screen.dart';
+import '../programs/client_group_member_map_screen.dart';
+import '../programs/loan_status_history_screen.dart';
+import '../programs/loan_outstanding_balance_screen.dart';
+import '../programs/loan_repayment_schedule_screen.dart';
+import '../programs/loan_status_history_screen.dart';
+import '../programs/loan_outstanding_balance_screen.dart';
+import '../programs/loan_repayment_schedule_screen.dart';
+import '../programs/loan_account_master_screen.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -418,9 +427,9 @@ class _MainShellState extends State<MainShell> {
                                       _buildSubMenuItem('Delinquency Bucket Master', Icons.warning_amber_outlined),
                                       _buildSubMenuItem('Penalty Rate History', Icons.gavel_outlined),
                                       _buildSubMenuItem('Asset Classification GL Map', Icons.category_outlined),
-                                      _buildSubMenuItem('Prepayment Foreclosure Configuration', Icons.settings_outlined),
-                                      _buildSubMenuItem('Rate Revision History', Icons.trending_up_outlined),
-                                      _buildSubMenuItem('Holiday Calendar', Icons.calendar_month_outlined),
+                                      _buildSubMenuItem('Prepayment Foreclosure Configuration', Icons.monetization_on_outlined),
+                                      _buildSubMenuItem('Rate Revision History', Icons.update_outlined),
+                                      _buildSubMenuItem('Holiday Calendar', Icons.event_outlined),
                                     ],
                                   ),
                                 ),
@@ -447,6 +456,34 @@ class _MainShellState extends State<MainShell> {
                                       _buildSubMenuItem('Menu Master', Icons.menu_book_outlined),
                                     ],
                                   ),
+                                ),
+                                if (_isSidebarHovered)
+                                  Theme(
+                                    data: Theme.of(context).copyWith(
+                                      dividerColor: Colors.transparent,
+                                    ),
+                                    child: ExpansionTile(
+                                      leading: const Icon(Icons.group_work_outlined, color: Colors.white70),
+                                      title: const Text('Client Group Master', style: TextStyle(color: Colors.white, fontSize: 14)),
+                                      iconColor: Colors.white,
+                                      collapsedIconColor: Colors.white70,
+                                      childrenPadding: const EdgeInsets.only(left: 12.0),
+                                      initiallyExpanded: false,
+                                      children: [
+                                        _buildSubMenuItem('Group Creation', Icons.add_circle_outline),
+                                        _buildSubMenuItem('Group Mapping', Icons.people_outline_rounded),
+                                      ],
+                                    ),
+                                  ),
+                                _buildMenuItem(
+                                  icon: Icons.account_box_outlined,
+                                  title: 'Loan Account Master',
+                                  isSelected: _selectedPage == 'Loan Account Master',
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedPage = 'Loan Account Master';
+                                    });
+                                  },
                                 ),
                                 if (_isSidebarHovered) ...[
                                   Theme(
@@ -483,6 +520,33 @@ class _MainShellState extends State<MainShell> {
                                       ],
                                     ),
                                   ),
+                                  if (_isSidebarHovered) ...[
+                                    Theme(
+                                      data: Theme.of(context).copyWith(
+                                        dividerColor: Colors.transparent,
+                                      ),
+                                      child: ExpansionTile(
+                                        leading: const Icon(Icons.search, color: Colors.white70),
+                                        title: const Text('Queries', style: TextStyle(color: Colors.white, fontSize: 14)),
+                                        iconColor: Colors.white,
+                                        collapsedIconColor: Colors.white70,
+                                        childrenPadding: const EdgeInsets.only(left: 12.0),
+                                        initiallyExpanded: false,
+                                        children: [
+                                          _buildSubMenuItem('Loan Status History', Icons.history_edu),
+                                          _buildSubMenuItem('Loan Outstanding Balance', Icons.account_balance_wallet),
+                                          _buildSubMenuItem('Loan Repayment Schedule', Icons.calendar_month),
+                                        ],
+                                      ),
+                                    ),
+                                  ] else ...[
+                                    _buildMenuItem(
+                                      icon: Icons.search,
+                                      title: 'Queries',
+                                      isSelected: false,
+                                      onTap: () {},
+                                    ),
+                                  ],
                                 ] else ...[
                                 _buildMenuItem(
                                   icon: Icons.folder_open,
@@ -493,6 +557,12 @@ class _MainShellState extends State<MainShell> {
                                 _buildMenuItem(
                                   icon: Icons.admin_panel_settings_outlined,
                                   title: 'AM Masters',
+                                  isSelected: false,
+                                  onTap: () {},
+                                ),
+                                _buildMenuItem(
+                                  icon: Icons.group_work_outlined,
+                                  title: 'Client Group Master',
                                   isSelected: false,
                                   onTap: () {},
                                 ),
@@ -555,6 +625,12 @@ class _MainShellState extends State<MainShell> {
         return const RateRevisionHistoryScreen();
       case 'Holiday Calendar':
         return const HolidayCalendarScreen();
+      case 'Group Creation':
+        return const ClientGroupMasterScreen();
+      case 'Group Mapping':
+        return const ClientGroupMemberMapScreen();
+      case 'Loan Account Master':
+        return const LoanAccountMasterScreen();
       // ── AM Masters ────────────────────────────────────────────────────────
       case 'Organizations':
         return const Organizations();
@@ -584,7 +660,13 @@ class _MainShellState extends State<MainShell> {
       case 'Disbursement Queue':
         return const DisbursalPendingScreen();
 
-
+      // ── Queries ─────────────────────────────────────────────────────────
+      case 'Loan Status History':
+        return const LoanStatusHistoryScreen();
+      case 'Loan Outstanding Balance':
+        return const LoanOutstandingBalanceScreen();
+      case 'Loan Repayment Schedule':
+        return const LoanRepaymentScheduleScreen();
       // ── Dashboard ─────────────────────────────────────────────────────────
       case 'Dashboard':
       default:

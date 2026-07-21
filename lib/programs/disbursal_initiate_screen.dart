@@ -20,7 +20,7 @@ class _DisbursalInitiateScreenState extends State<DisbursalInitiateScreen> {
   bool _isLoading = false;
 
   final _formKey = GlobalKey<FormState>();
-  final _queueIdCtrl = TextEditingController();
+  String _clientType = 'I';
   final _clientIdCtrl = TextEditingController();
   final _loanAmtCtrl = TextEditingController();
 
@@ -46,7 +46,7 @@ class _DisbursalInitiateScreenState extends State<DisbursalInitiateScreen> {
       _view = v;
       _sel = r;
       if (v == MFView.create || v == MFView.edit || v == MFView.view) {
-        _queueIdCtrl.text = r?.queueId ?? '';
+        _clientType = r?.queueId ?? 'I';
         _clientIdCtrl.text = r?.clientId ?? '';
         _loanAmtCtrl.text = r != null ? r.approvedAmount.toString() : '';
       }
@@ -60,7 +60,7 @@ class _DisbursalInitiateScreenState extends State<DisbursalInitiateScreen> {
       final double loanAmt = double.tryParse(_loanAmtCtrl.text) ?? 0.0;
       final record = DisbursalQueue(
         orgCode: '101',
-        queueId: _queueIdCtrl.text.trim().toUpperCase(),
+        queueId: _clientType,
         sourceSystem: 'MANUAL',
         sourceRefNo: null,
         clientId: _clientIdCtrl.text.trim().toUpperCase(),
@@ -215,7 +215,7 @@ class _DisbursalInitiateScreenState extends State<DisbursalInitiateScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                 decoration: const BoxDecoration(color: Color(0xFF1E3050), borderRadius: BorderRadius.vertical(top: Radius.circular(15))),
                 child: Row(children: [
-                  Expanded(flex: 2, child: _colHdr('QUEUE ID')),
+                  Expanded(flex: 2, child: _colHdr('CLIENT TYPE')),
                   Expanded(flex: 2, child: _colHdr('CLIENT ID')),
                   Expanded(flex: 2, child: _colHdr('AMOUNT')),
                   Expanded(flex: 2, child: _colHdr('STATUS')),
@@ -233,8 +233,8 @@ class _DisbursalInitiateScreenState extends State<DisbursalInitiateScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                     decoration: BoxDecoration(border: isLast ? null : const Border(bottom: BorderSide(color: Color(0xFFF1F5F9)))),
                     child: Row(children: [
-                      Expanded(flex: 2, child: Text(r.queueId, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)))),
-                      Expanded(flex: 2, child: Text(r.clientId, style: const TextStyle(fontSize: 13, color: Color(0xFF334155)))),
+                      Expanded(flex: 2, child: Text(r.queueId == 'I' ? 'I - Individual' : r.queueId == 'C' ? 'C - Corporate' : r.queueId == 'G' ? 'G - Group' : r.queueId, style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1E293B)))),
+                      Expanded(flex: 2, child: Text(r.clientId, style: const TextStyle(color: Color(0xFF475569)))),
                       Expanded(flex: 2, child: Text(r.approvedAmount.toString(), style: const TextStyle(fontSize: 13, color: Color(0xFF334155)))),
                       Expanded(flex: 2, child: _statusBadge(r.disbursementStatus)),
                       Expanded(flex: 2, child: Text(r.queuedDate.toIso8601String().substring(0, 10), style: const TextStyle(fontSize: 13, color: Color(0xFF334155)))),
@@ -316,9 +316,13 @@ class _DisbursalInitiateScreenState extends State<DisbursalInitiateScreen> {
                 _secHdr('DISBURSAL DETAILS'),
                 const SizedBox(height: 16),
                 Wrap(spacing: 24, runSpacing: 24, children: [
-                  SizedBox(width: 300, child: MFFloatingLabelField(
-                    label: 'Queue ID', ctrl: _queueIdCtrl, icon: Icons.qr_code, required: !isView,
-                    readOnly: isEdit || isView, showLock: isEdit || isView,
+                  SizedBox(width: 300, child: MFApiDropdownField(
+                    label: 'Client Type', icon: Icons.person_outline, required: !isView,
+                    items: const [{'id': 'I', 'name': 'I - Individual'}, {'id': 'C', 'name': 'C - Corporate'}, {'id': 'G', 'name': 'G - Group'}],
+                    displayKeys: const ['name'],
+                    selectedItem: {'id': _clientType},
+                    onChanged: (v) { if (!isView) setState(() => _clientType = v?['id'] ?? 'I'); },
+                    enabled: !isView,
                   )),
                   SizedBox(width: 300, child: MFFloatingLabelField(
                     label: 'Client ID', ctrl: _clientIdCtrl, icon: Icons.person_outline, required: !isView,
@@ -370,7 +374,7 @@ class _DisbursalInitiateScreenState extends State<DisbursalInitiateScreen> {
         Padding(
           padding: const EdgeInsets.all(24),
           child: Column(children: [
-            Row(children: [ const Text('Queue ID: ', style: TextStyle(color: Color(0xFF64748B))), Text(r.queueId, style: const TextStyle(fontWeight: FontWeight.w600)) ]),
+            Row(children: [ const Text('Client Type: ', style: TextStyle(color: Color(0xFF64748B))), Text(r.queueId == 'I' ? 'I - Individual' : r.queueId == 'C' ? 'C - Corporate' : r.queueId == 'G' ? 'G - Group' : r.queueId, style: const TextStyle(fontWeight: FontWeight.w600)) ]),
             const SizedBox(height: 8),
             Row(children: [ const Text('Client ID: ', style: TextStyle(color: Color(0xFF64748B))), Text(r.clientId, style: const TextStyle(fontWeight: FontWeight.w600)) ]),
           ]),

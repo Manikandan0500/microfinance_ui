@@ -21,8 +21,6 @@ class _DisbursalPendingScreenState extends State<DisbursalPendingScreen> {
   final int _size = 10;
   bool _isLoading = false;
 
-  final _formKey = GlobalKey<FormState>();
-
   final _queueIdCtrl = TextEditingController();
   final _clientIdCtrl = TextEditingController();
   final _loanAmtCtrl = TextEditingController();
@@ -42,6 +40,7 @@ class _DisbursalPendingScreenState extends State<DisbursalPendingScreen> {
   final _accPostingRefCtrl = TextEditingController();
   String _disbursementMode = 'Bank';
   String _accPostingStatus = 'Pending';
+  String _clientType = 'I';
 
   @override
   void initState() {
@@ -101,7 +100,7 @@ class _DisbursalPendingScreenState extends State<DisbursalPendingScreen> {
   }
 
   Future<void> _submitToAuthQueue() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (_loanAccountNoCtrl.text.isEmpty || _productCodeCtrl.text.isEmpty) return;
     if (_selPending == null || _selQueue == null) return;
 
     final updatedPending = _selPending!.copyWith(
@@ -346,15 +345,19 @@ class _DisbursalPendingScreenState extends State<DisbursalPendingScreen> {
                 _fBtn('Back', Icons.arrow_back_rounded, const Color(0xFF1E3050), Colors.white, const Color(0xFF1E3050), onTap: () => _go(MFView.list)),
               ],
             ),
-            _card(child: Form(key: _formKey, child: Padding(
+            _card(child: Padding(
               padding: const EdgeInsets.all(24),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 _secHdr('DISBURSAL DETAILS'),
                 const SizedBox(height: 16),
                 Wrap(spacing: 24, runSpacing: 24, children: [
-                  SizedBox(width: 300, child: MFFloatingLabelField(
-                    label: 'Queue ID', ctrl: _queueIdCtrl, icon: Icons.qr_code, required: false,
-                    readOnly: true, showLock: true,
+                  SizedBox(width: 300, child: MFApiDropdownField(
+                    label: 'Client Type', icon: Icons.person_outline, required: false,
+                    items: const [{'id': 'I', 'name': 'I - Individual'}, {'id': 'C', 'name': 'C - Corporate'}, {'id': 'G', 'name': 'G - Group'}],
+                    displayKeys: const ['name'],
+                    selectedItem: {'id': _clientType},
+                    onChanged: (v) { if (!isView) setState(() => _clientType = v?['id'] ?? 'I'); },
+                    enabled: !isView,
                   )),
                   SizedBox(width: 300, child: MFFloatingLabelField(
                     label: 'Client ID', ctrl: _clientIdCtrl, icon: Icons.person_outline, required: false,
@@ -445,7 +448,7 @@ class _DisbursalPendingScreenState extends State<DisbursalPendingScreen> {
                   )),
                 ]),
               ]),
-            ))),
+            )),
           ]),
         ),
       ),

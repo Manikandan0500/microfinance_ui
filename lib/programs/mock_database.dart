@@ -12,6 +12,11 @@ import 'models/holiday_calendar.dart';
 import 'models/auth_models.dart';
 import 'models/disbursal_queue.dart';
 import 'models/pending_disbursal.dart';
+import 'models/client_group_master.dart';
+import 'models/loan_account_master.dart';
+import 'models/loan_status_history.dart';
+import 'models/loan_outstanding_balance.dart';
+import 'models/loan_repayment_schedule.dart';
 
 export 'models/region_master.dart';
 export 'models/branch_region_map.dart';
@@ -25,6 +30,7 @@ export 'models/holiday_calendar.dart';
 export 'models/auth_models.dart';
 export 'models/disbursal_queue.dart';
 export 'models/pending_disbursal.dart';
+export 'models/client_group_master.dart';
 
 
 // --- Mock Database (In-Memory State Store) ---
@@ -32,6 +38,51 @@ class MockDatabase extends ChangeNotifier {
   static final MockDatabase _instance = MockDatabase._internal();
   factory MockDatabase() => _instance;
   MockDatabase._internal();
+
+  final List<LoanAccountMaster> loanAccounts = [
+    LoanAccountMaster(orgCode: '101', loanAccountNo: 'L-2023-001', clientId: 'C-001', productCode: 'JLG', disbursedAmount: 25000, disbursementDate: DateTime(2023, 1, 10), maturityDate: DateTime(2024, 1, 10), loanStatus: 'Active', outstandingPrincipal: 15000, outstandingInterest: 1200, currentDelinquencyCode: 'STD', eUser: 'SYS', eDate: DateTime(2023, 1, 10)),
+    LoanAccountMaster(orgCode: '101', loanAccountNo: 'L-2023-002', clientId: 'C-002', productCode: 'JLG', disbursedAmount: 25000, disbursementDate: DateTime(2023, 2, 5), maturityDate: DateTime(2024, 2, 5), loanStatus: 'Active', outstandingPrincipal: 8000, outstandingInterest: 400, currentDelinquencyCode: 'STD', eUser: 'SYS', eDate: DateTime(2023, 2, 5)),
+    LoanAccountMaster(orgCode: '101', loanAccountNo: 'L-2023-003', clientId: 'C-003', productCode: 'PL', disbursedAmount: 50000, disbursementDate: DateTime(2022, 6, 1), maturityDate: DateTime(2023, 6, 1), loanStatus: 'Closed', outstandingPrincipal: 0, outstandingInterest: 0, eUser: 'SYS', eDate: DateTime(2022, 6, 1)),
+  ];
+
+  final List<LoanStatusHistory> loanStatusHistories = [
+    LoanStatusHistory(orgCode: '101', loanAccountNo: 'L-2023-001', statusSeqNo: 1, statusFrom: null, statusTo: 'Active', changedDate: DateTime(2023, 1, 10), changedBy: 'USR01', eUser: 'SYS', eDate: DateTime(2023, 1, 10)),
+    LoanStatusHistory(orgCode: '101', loanAccountNo: 'L-2023-001', statusSeqNo: 2, statusFrom: 'Active', statusTo: 'NPA', changedDate: DateTime(2023, 6, 15), changedBy: 'USR02', remarks: 'Missed 3 payments', eUser: 'SYS', eDate: DateTime(2023, 6, 15)),
+    LoanStatusHistory(orgCode: '101', loanAccountNo: 'L-2023-002', statusSeqNo: 1, statusFrom: null, statusTo: 'Active', changedDate: DateTime(2023, 2, 5), changedBy: 'USR01', eUser: 'SYS', eDate: DateTime(2023, 2, 5)),
+  ];
+
+  final List<LoanOutstandingBalance> loanOutstandingBalances = [
+    LoanOutstandingBalance(orgCode: '101', loanAccountNo: 'L-2023-001', asOnDate: DateTime.now(), principalOutstanding: 15000, interestOutstanding: 1200, penaltyOutstanding: 500, totalOutstanding: 16700, eUser: 'SYS', eDate: DateTime.now()),
+    LoanOutstandingBalance(orgCode: '101', loanAccountNo: 'L-2023-002', asOnDate: DateTime.now(), principalOutstanding: 8000, interestOutstanding: 400, penaltyOutstanding: 0, totalOutstanding: 8400, eUser: 'SYS', eDate: DateTime.now()),
+    LoanOutstandingBalance(orgCode: '101', loanAccountNo: 'L-2023-003', asOnDate: DateTime.now(), principalOutstanding: 0, interestOutstanding: 0, penaltyOutstanding: 0, totalOutstanding: 0, eUser: 'SYS', eDate: DateTime.now()),
+  ];
+
+  final List<LoanRepaymentSchedule> loanRepaymentSchedules = [
+    LoanRepaymentSchedule(orgCode: '101', loanAccountNo: 'L-2023-001', installmentNo: 1, dueDate: DateTime(2023, 2, 10), principalDue: 1000, interestDue: 200, totalDue: 1200, principalPaid: 1000, interestPaid: 200, installmentStatus: 'Paid', eUser: 'SYS', eDate: DateTime(2023, 1, 10)),
+    LoanRepaymentSchedule(orgCode: '101', loanAccountNo: 'L-2023-001', installmentNo: 2, dueDate: DateTime(2023, 3, 10), principalDue: 1000, interestDue: 180, totalDue: 1180, principalPaid: 500, interestPaid: 180, installmentStatus: 'PartiallyPaid', eUser: 'SYS', eDate: DateTime(2023, 1, 10)),
+    LoanRepaymentSchedule(orgCode: '101', loanAccountNo: 'L-2023-001', installmentNo: 3, dueDate: DateTime(2023, 4, 10), principalDue: 1000, interestDue: 160, totalDue: 1160, principalPaid: 0, interestPaid: 0, installmentStatus: 'Overdue', eUser: 'SYS', eDate: DateTime(2023, 1, 10)),
+  ];
+
+  final List<ClientGroupMaster> clientGroups = [
+    ClientGroupMaster(
+      orgCode: '101',
+      groupCode: 'JLG-CHENNAI-01',
+      groupName: 'Chennai Self Help Group 1',
+      branchCode: 'BRN-CH01',
+      regionCode: 'REG-SOUTH',
+      regionalOfficerId: 'RO-102',
+      sourceSystem: 'MANUAL',
+      meetingDay: 'Monday',
+      meetingFrequency: 'Weekly',
+      groupStatus: 'A',
+    ),
+  ];
+
+  final List<ClientGroupMemberMap> clientGroupMemberMaps = [
+    ClientGroupMemberMap(orgCode: '101', groupCode: 'JLG-CHENNAI-01', clientId: 'CLI-001', memberRole: 'Leader', joinDate: DateTime(2026, 01, 10), memberStatus: 'A'),
+    ClientGroupMemberMap(orgCode: '101', groupCode: 'JLG-CHENNAI-01', clientId: 'CLI-002', memberRole: 'Member', joinDate: DateTime(2026, 01, 10), memberStatus: 'A'),
+    ClientGroupMemberMap(orgCode: '101', groupCode: 'JLG-CHENNAI-01', clientId: 'CLI-003', memberRole: 'Member', joinDate: DateTime(2026, 01, 15), memberStatus: 'A'),
+  ];
 
   // --- Initial Data ---
   final List<RegionMaster> regions = [
@@ -604,6 +655,59 @@ class MockDatabase extends ChangeNotifier {
       notifyListeners();
     }
   }
+  // --- CRUD Methods: Client Group Master ---
+  void addClientGroup(ClientGroupMaster record) {
+    clientGroups.add(record);
+    notifyListeners();
+  }
 
+  void updateClientGroup(ClientGroupMaster record) {
+    final idx = clientGroups.indexWhere((c) => c.groupCode == record.groupCode);
+    if (idx != -1) {
+      clientGroups[idx] = record;
+      notifyListeners();
+    }
+  }
+
+  void addLoanAccount(LoanAccountMaster record) {
+    loanAccounts.add(record);
+    notifyListeners();
+  }
+
+  void updateLoanAccount(LoanAccountMaster record) {
+    final idx = loanAccounts.indexWhere((c) => c.loanAccountNo == record.loanAccountNo);
+    if (idx != -1) {
+      loanAccounts[idx] = record;
+      notifyListeners();
+    }
+  }
+
+  void deleteLoanAccount(String accountNo) {
+    loanAccounts.removeWhere((c) => c.loanAccountNo == accountNo);
+    notifyListeners();
+  }
+
+  void deleteClientGroup(String groupCode) {
+    clientGroups.removeWhere((c) => c.groupCode == groupCode);
+    notifyListeners();
+  }
+
+  // --- CRUD Methods: Client Group Member Map ---
+  void addClientGroupMemberMap(ClientGroupMemberMap record) {
+    clientGroupMemberMaps.add(record);
+    notifyListeners();
+  }
+
+  void updateClientGroupMemberMap(ClientGroupMemberMap record) {
+    final idx = clientGroupMemberMaps.indexWhere((c) => c.groupCode == record.groupCode && c.clientId == record.clientId);
+    if (idx != -1) {
+      clientGroupMemberMaps[idx] = record;
+      notifyListeners();
+    }
+  }
+
+  void deleteClientGroupMemberMap(String groupCode, String clientId) {
+    clientGroupMemberMaps.removeWhere((c) => c.groupCode == groupCode && c.clientId == clientId);
+    notifyListeners();
+  }
 }
-
