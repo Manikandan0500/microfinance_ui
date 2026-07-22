@@ -48,7 +48,6 @@ class _LoanAccountMasterScreenState extends State<LoanAccountMasterScreen> {
   final _apprIntRateCtrl = TextEditingController();
   final _searchCtrl = TextEditingController();
   
-  String _disbStatus = 'Pending';
   String? _formErr;
 
   final _formKey = GlobalKey<FormState>();
@@ -111,7 +110,7 @@ class _LoanAccountMasterScreenState extends State<LoanAccountMasterScreen> {
         approvedInterestRate: double.tryParse(_apprIntRateCtrl.text) ?? 0.0,
         queueDate: DateTime.now(),
         assignedToUserId: username,
-        disbursementStatus: _disbStatus,
+        disbursementStatus: 'PENDING',
         currencyCode: _currCtrl.text,
       );
 
@@ -176,7 +175,6 @@ class _LoanAccountMasterScreenState extends State<LoanAccountMasterScreen> {
         _apprAmtCtrl.text = '';
         _apprTenureCtrl.text = '';
         _apprIntRateCtrl.text = '';
-        _disbStatus = 'Pending';
       } else if (r != null) {
         _groupCtrl.text = r.groupCode ?? '';
         _clientCtrl.text = r.clientId;
@@ -187,7 +185,6 @@ class _LoanAccountMasterScreenState extends State<LoanAccountMasterScreen> {
         _apprAmtCtrl.text = r.approvedAmount.toString();
         _apprTenureCtrl.text = r.approvedTenureMonths.toString();
         _apprIntRateCtrl.text = r.approvedInterestRate.toString();
-        _disbStatus = r.disbursementStatus;
       }
     });
   }
@@ -392,19 +389,27 @@ class _LoanAccountMasterScreenState extends State<LoanAccountMasterScreen> {
                     label: 'Group Code',
                     icon: Icons.group,
                     required: true,
-                    items: _groupList.map((g) => {'id': g.groupCode, 'name': g.groupName}).toList(),
-                    displayKeys: const ['id', 'name'],
-                    selectedItem: _groupCtrl.text.isNotEmpty ? {'id': _groupCtrl.text} : null,
-                    onChanged: (v) => setState(() => _groupCtrl.text = v?['id'] ?? ''),
+                    items: _groupList.map((g) => {'id': g.groupCode, 'display': '${g.groupCode} - ${g.groupName}'}).toList(),
+                    displayKeys: const ['display'],
+                    selectedItem: _groupCtrl.text.isNotEmpty ? {'display': '${_groupCtrl.text} - ${_groupList.where((g) => g.groupCode == _groupCtrl.text).map((g) => g.groupName).join('')}'} : null,
+                    onChanged: (v) {
+                      setState(() {
+                        _groupCtrl.text = v?['id'] ?? '';
+                        if (_groupCtrl.text.isNotEmpty && _clientCtrl.text.isNotEmpty) {
+                          bool validClient = _groupMapList.any((m) => m.groupCode == _groupCtrl.text && m.clientId == _clientCtrl.text && m.memberStatus == 'A');
+                          if (!validClient) _clientCtrl.text = '';
+                        }
+                      });
+                    },
                     enabled: !isView,
                   ), constraints),
                   _fieldBox(MFApiDropdownField(
                     label: 'Client ID',
                     icon: Icons.person_outline,
                     required: true,
-                    items: _cifList.map((c) => {'id': c.cifId, 'name': c.fullName}).toList(),
-                    displayKeys: const ['id', 'name'],
-                    selectedItem: _clientCtrl.text.isNotEmpty ? {'id': _clientCtrl.text} : null,
+                    items: _cifList.where((c) => _groupCtrl.text.isEmpty || _groupMapList.any((m) => m.groupCode == _groupCtrl.text && m.clientId == c.cifId && m.memberStatus == 'A')).map((c) => {'id': c.cifId, 'display': '${c.cifId} - ${c.fullName}'}).toList(),
+                    displayKeys: const ['display'],
+                    selectedItem: _clientCtrl.text.isNotEmpty ? {'display': '${_clientCtrl.text} - ${_cifList.where((c) => c.cifId == _clientCtrl.text).map((c) => c.fullName).join('')}'} : null,
                     onChanged: (v) {
                       _clientCtrl.text = v?['id'] ?? '';
                       if (_clientCtrl.text.isNotEmpty) {
@@ -423,9 +428,9 @@ class _LoanAccountMasterScreenState extends State<LoanAccountMasterScreen> {
                     label: 'Product Code',
                     icon: Icons.account_balance,
                     required: true,
-                    items: _productList.map((p) => {'id': p.productCode, 'name': p.productName}).toList(),
-                    displayKeys: const ['id', 'name'],
-                    selectedItem: _prodCtrl.text.isNotEmpty ? {'id': _prodCtrl.text} : null,
+                    items: _productList.map((p) => {'id': p.productCode, 'display': '${p.productCode} - ${p.productName}'}).toList(),
+                    displayKeys: const ['display'],
+                    selectedItem: _prodCtrl.text.isNotEmpty ? {'display': '${_prodCtrl.text} - ${_productList.where((p) => p.productCode == _prodCtrl.text).map((p) => p.productName).join('')}'} : null,
                     onChanged: (v) => setState(() => _prodCtrl.text = v?['id'] ?? ''),
                     enabled: !isView,
                   ), constraints),
@@ -451,14 +456,6 @@ class _LoanAccountMasterScreenState extends State<LoanAccountMasterScreen> {
                   ), constraints),
                   _fieldBox(MFFloatingLabelField(
                     label: 'Approved Interest Rate', required: true, ctrl: _apprIntRateCtrl, icon: Icons.percent, readOnly: isView, showLock: isView,
-                  ), constraints),
-                ]),
-                const SizedBox(height: 32),
-                _secHdr('STATUS'),
-                const SizedBox(height: 32),
-                Wrap(spacing: 24, runSpacing: 32, children: [
-                  _fieldBox(MFApiDropdownField(
-                    label: 'Disbursement Status', required: true, icon: Icons.info_outline, selectedItem: {'id': _disbStatus}, items: const [{'id': 'Pending'}, {'id': 'In Progress'}, {'id': 'Completed'}], displayKeys: const ['id'], onChanged: (v) { if (v != null) setState(() => _disbStatus = v['id'] ?? 'Pending'); }, enabled: !isView,
                   ), constraints),
                 ]),
               ]);

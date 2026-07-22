@@ -458,262 +458,899 @@ class _DisbursalPendingScreenState extends State<DisbursalPendingScreen> {
     final pendingAuthCnt = _data
         .where((r) => r.disbursementStatus == 'Pending Authorization').length;
 
-    return Column(children: [
-      _pageHeader(title: 'Disbursement Queue', actions: []),
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          MFActiveInactiveSummary(activeCount: pendingAuthCount, inactiveCount: pendingInputCount),
-        ],
-      ),
-      const SizedBox(height: 16),
-      Wrap(
-        alignment: WrapAlignment.end,
-        spacing: 16,
-        runSpacing: 16,
-        children: [
-          SizedBox(
-            width: 280, height: 40,
-            child: TextField(
-              onChanged: (v) => setState(() { _search = v; _page = 1; }),
-              decoration: InputDecoration(
-                hintText: 'Search loan accounts...',
-                prefixIcon: const Icon(Icons.search, size: 18, color: Color(0xFF64748B)),
-                filled: true, fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF1E3050), width: 2)),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+          child: Row(children: [
+            const Text('Disbursement Queue',
+                style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1E293B))),
+            const Spacer(),
+            SizedBox(
+              width: 260, height: 40,
+              child: TextField(
+                onChanged: (v) =>
+                    setState(() { _search = v; _page = 1; }),
+                decoration: InputDecoration(
+                  hintText: 'Search loan account, status…',
+                  prefixIcon: const Icon(Icons.search,
+                      size: 18, color: Color(0xFF94A3B8)),
+                  filled: true, fillColor: const Color(0xFFF1F5F9),
+                  contentPadding: EdgeInsets.zero,
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none),
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-      const SizedBox(height: 16),
-      Expanded(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Container(
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE2E8F0)), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10, offset: const Offset(0, 4))]),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                decoration: const BoxDecoration(color: Color(0xFF1E3050), borderRadius: BorderRadius.vertical(top: Radius.circular(15))),
-                child: Row(children: [
-                  Expanded(flex: 2, child: _colHdr('LOAN ACCOUNT NO')),
-                  Expanded(flex: 2, child: _colHdr('AMOUNT')),
-                  Expanded(flex: 2, child: _colHdr('MODE')),
-                  Expanded(flex: 2, child: _colHdr('STATUS')),
-                  Expanded(flex: 2, child: _colHdr('DATE')),
-                  const SizedBox(width: 80, child: Text('ACTIONS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white70, letterSpacing: 0.5), textAlign: TextAlign.right)),
-                ]),
+            const SizedBox(width: 12),
+            IconButton(
+              onPressed: _loadData,
+              icon: const Icon(Icons.refresh_rounded,
+                  color: Color(0xFF64748B)),
+              tooltip: 'Refresh',
+              style: IconButton.styleFrom(
+                backgroundColor: const Color(0xFFF1F5F9),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
               ),
-              if (items.isEmpty)
-                const Padding(padding: EdgeInsets.all(40), child: Center(child: Text('No records found', style: TextStyle(color: Color(0xFF64748B)))))
-              else
-                ...items.asMap().entries.map((e) {
-                  final r = e.value;
-                  final isLast = e.key == items.length - 1;
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                    decoration: BoxDecoration(border: isLast ? null : const Border(bottom: BorderSide(color: Color(0xFFF1F5F9)))),
-                    child: Row(children: [
-                      Expanded(flex: 2, child: Text(r.loanAccountNo, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)))),
-                      Expanded(flex: 2, child: Text(r.disbursementAmount.toString(), style: const TextStyle(fontSize: 13, color: Color(0xFF334155)))),
-                      Expanded(flex: 2, child: Text(r.disbursementMode, style: const TextStyle(fontSize: 13, color: Color(0xFF334155)))),
-                      Expanded(flex: 2, child: _statusBadge(r.disbursementStatus)),
-                      Expanded(flex: 2, child: Text(r.disbursementDate.toIso8601String().substring(0, 10), style: const TextStyle(fontSize: 13, color: Color(0xFF334155)))),
-                      SizedBox(width: 80, child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                        _rowBtn(Icons.visibility_rounded, const Color(0xFF64748B), () => _go(MFView.view, r)), const SizedBox(width: 6),
-                        if (r.disbursementStatus == 'Pending Input')
-                          _rowBtn(Icons.edit_rounded, const Color(0xFF1E3050), () => _go(MFView.edit, r)),
-                      ])),
-                    ]),
-                  );
-                }),
-              if (pages > 1)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFE2E8F0)))),
-                  child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                    Text('Showing $start to $end of ${filtered.length} records', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
-                    Row(children: [
-                      _pageBtn(Icons.chevron_left, _page > 1 ? () => setState(() => _page--) : null),
-                      const SizedBox(width: 8),
-                      Text('Page $_page of $pages', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF1E293B))),
-                      const SizedBox(width: 8),
-                      _pageBtn(Icons.chevron_right, _page < pages ? () => setState(() => _page++) : null),
-                    ]),
-                  ]),
-                ),
-            ]),
+            ),
+          ]),
+        ),
+
+        // Summary cards
+        Padding(
+          padding: const EdgeInsets.fromLTRB(28, 20, 28, 0),
+          child: MFActiveInactiveSummary(
+            activeCount: pendingInputCnt,
+            inactiveCount: pendingAuthCnt,
           ),
         ),
-      ),
-    ]);
+
+        // Table
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(28),
+            child: _isLoading
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(40),
+                      child: CircularProgressIndicator(
+                          color: Color(0xFF1E3050)),
+                    ),
+                  )
+                : Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border:
+                          Border.all(color: const Color(0xFFE2E8F0)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.03),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4)),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Table header
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 14),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF1E3050),
+                            borderRadius: BorderRadius.vertical(
+                                top: Radius.circular(15)),
+                          ),
+                          child: Row(children: [
+                            Expanded(flex: 2,
+                                child: _th('LOAN ACCOUNT NO')),
+                            Expanded(flex: 2, child: _th('CLIENT TYPE')),
+                            Expanded(flex: 2, child: _th('AMOUNT')),
+                            Expanded(flex: 2, child: _th('STATUS')),
+                            Expanded(flex: 2, child: _th('DATE')),
+                            const SizedBox(
+                              width: 80,
+                              child: Text('ACTIONS',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white70,
+                                      letterSpacing: 0.5)),
+                            ),
+                          ]),
+                        ),
+                        // Rows
+                        if (pageItems.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.all(40),
+                            child: Center(
+                              child: Text(
+                                  'No Disbursement Queue records.',
+                                  style: TextStyle(
+                                      color: Color(0xFF94A3B8))),
+                            ),
+                          )
+                        else
+                          ...pageItems.asMap().entries.map((e) {
+                            final r = e.value;
+                            final queue = _findQueueFor(r);
+                            final isLast =
+                                e.key == pageItems.length - 1;
+                            final canEdit =
+                                r.disbursementStatus == 'Pending Input';
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 14),
+                              decoration: BoxDecoration(
+                                border: isLast
+                                    ? null
+                                    : const Border(
+                                        bottom: BorderSide(
+                                            color: Color(0xFFF1F5F9))),
+                              ),
+                              child: Row(children: [
+                                Expanded(
+                                    flex: 2,
+                                    child: Text(r.loanAccountNo,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            color:
+                                                Color(0xFF1E293B)))),
+                                Expanded(
+                                    flex: 2,
+                                    child: Text(
+                                        _clientTypeName(
+                                            queue?.clientType ?? ''),
+                                        style: const TextStyle(
+                                            color:
+                                                Color(0xFF475569)))),
+                                Expanded(
+                                    flex: 2,
+                                    child: Text(
+                                        'INR ${r.disbursementAmount.toStringAsFixed(2)}',
+                                        style: const TextStyle(
+                                            color:
+                                                Color(0xFF475569)))),
+                                Expanded(
+                                    flex: 2,
+                                    child: _statusBadge(
+                                        r.disbursementStatus)),
+                                Expanded(
+                                    flex: 2,
+                                    child: Text(
+                                        r.disbursementDate
+                                            .toIso8601String()
+                                            .substring(0, 10),
+                                        style: const TextStyle(
+                                            color: Color(0xFF64748B),
+                                            fontSize: 13))),
+                                SizedBox(
+                                  width: 80,
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.center,
+                                    children: [
+                                      _iconBtn(
+                                          Icons.visibility_outlined,
+                                          const Color(0xFF64748B),
+                                          () => _go(MFView.view, r)),
+                                      if (canEdit) ...[
+                                        const SizedBox(width: 8),
+                                        _iconBtn(
+                                            Icons.edit_outlined,
+                                            const Color(0xFF0288D1),
+                                            () => _go(MFView.edit, r)),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ]),
+                            );
+                          }),
+                        // Pagination
+                        if (totalPages > 1)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 20, vertical: 14),
+                            decoration: const BoxDecoration(
+                              border: Border(
+                                  top: BorderSide(
+                                      color: Color(0xFFE2E8F0)))),
+                            child: Row(
+                              mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Showing ${start + 1}–$end of '
+                                  '${filtered.length} records',
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF64748B)),
+                                ),
+                                MFPaginationControls(
+                                  currentPage: _page,
+                                  totalPages: totalPages,
+                                  onPrev: _page > 1
+                                      ? () => setState(() => _page--)
+                                      : null,
+                                  onNext: _page < totalPages
+                                      ? () => setState(() => _page++)
+                                      : null,
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+          ),
+        ),
+      ],
+    );
   }
 
-  Widget _colHdr(String t) => Text(t, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white, letterSpacing: 0.5));
-  Widget _pageBtn(IconData icon, VoidCallback? onTap) => MouseRegion(
-    cursor: onTap == null ? SystemMouseCursors.forbidden : SystemMouseCursors.click,
-    child: GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(color: onTap == null ? const Color(0xFFF1F5F9) : Colors.white, borderRadius: BorderRadius.circular(6), border: Border.all(color: const Color(0xFFE2E8F0))),
-        child: Icon(icon, size: 16, color: onTap == null ? const Color(0xFFCBD5E1) : const Color(0xFF334155)),
+  // ─── Form View ────────────────────────────────────────────────────────────
+
+  Widget _buildForm({required bool isView}) {
+    final isGroup = _clientType == 'G';
+
+    return Column(
+      children: [
+        // Header
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.symmetric(
+              horizontal: 28, vertical: 20),
+          child: Row(children: [
+            Text(
+              isView
+                  ? 'View Disbursement Details'
+                  : 'Complete Disbursement',
+              style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1E293B)),
+            ),
+            const Spacer(),
+            if (_selPending != null)
+              Container(
+                margin: const EdgeInsets.only(right: 16),
+                child: _statusBadge(_selPending!.disbursementStatus),
+              ),
+            OutlinedButton.icon(
+              onPressed: () => _go(MFView.list),
+              icon: const Icon(Icons.arrow_back_rounded, size: 16),
+              label: const Text('Back'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF334155),
+                side: const BorderSide(color: Color(0xFFCBD5E1)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ]),
+        ),
+
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ── Section 1: Initiation Details (locked) ──────────────
+                _sectionCard(
+                  icon: Icons.lock_outline,
+                  iconColor: const Color(0xFF64748B),
+                  title: 'Initiation Details',
+                  subtitle: 'Read-only — from Initiate Disbursal',
+                  bgColor: Colors.grey.shade50,
+                  borderColor: Colors.grey.shade200,
+                  children: [
+                    Wrap(spacing: 24, runSpacing: 20, children: [
+                      _lockedField('Client Type',
+                          _clientTypeName(_clientType),
+                          Icons.person_pin_outlined),
+                      _lockedField(
+                          'Client ID', _clientIdCtrl.text, Icons.badge_outlined),
+                      _lockedField('Queue ID', _queueIdCtrl.text, Icons.qr_code_2_rounded),
+                      _lockedField('Source System', _sourceSystemCtrl.text,
+                          Icons.input_rounded),
+                      if (_sourceRefNoCtrl.text.isNotEmpty)
+                        _lockedField('Source Ref No', _sourceRefNoCtrl.text,
+                            Icons.receipt_long_outlined),
+                      _lockedField('Queued Date', _queuedDateCtrl.text,
+                          Icons.calendar_today_outlined),
+                    ]),
+
+                    // ── Group field — only visible for Group type ──
+                    if (isGroup) ...[
+                      const SizedBox(height: 20),
+                      const Divider(color: Color(0xFFE2E8F0)),
+                      const SizedBox(height: 16),
+                      Row(children: [
+                        const Icon(Icons.group_outlined,
+                            color: Color(0xFF7C3AED), size: 18),
+                        const SizedBox(width: 8),
+                        const Text('Group Selection',
+                            style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF7C3AED))),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEDE9FE),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Text('Required for Group',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF7C3AED))),
+                        ),
+                      ]),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: 340,
+                        child: isView
+                            ? _lockedField(
+                                'Group',
+                                _selectedGroupId ?? '—',
+                                Icons.groups_2_outlined)
+                            : _groupDropdown(),
+                      ),
+                    ],
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+
+                // ── Section 2: Product & Loan Terms ─────────────────────
+                _sectionCard(
+                  icon: Icons.account_balance_outlined,
+                  iconColor: const Color(0xFF0288D1),
+                  title: 'Product & Loan Terms',
+                  subtitle: 'Complete the loan product, loan amount, and repayment terms',
+                  bgColor: const Color(0xFFE1F5FE),
+                  borderColor: const Color(0xFFB3E5FC),
+                  children: [
+                    Wrap(spacing: 24, runSpacing: 20, children: [
+                      // Mandatory read-only Loan Amount (auto-populated from Initiate Disbursal)
+                      _lockedField('Loan Amount (INR)', _loanAmtCtrl.text,
+                          Icons.currency_rupee_rounded),
+                      SizedBox(
+                        width: 300,
+                        child: MFFloatingLabelField(
+                          label: 'Approved Tenure (Months)',
+                          ctrl: _approvedTenureCtrl,
+                          icon: Icons.timelapse_outlined,
+                          required: !isView,
+                          readOnly: isView,
+                          showLock: isView,
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                      SizedBox(
+                        width: 300,
+                        child: MFFloatingLabelField(
+                          label: 'Approved Interest Rate (%)',
+                          ctrl: _approvedInterestRateCtrl,
+                          icon: Icons.percent_outlined,
+                          required: !isView,
+                          readOnly: isView,
+                          showLock: isView,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                        ),
+                      ),
+                      // Mandatory Repayment Frequency Dropdown
+                      SizedBox(
+                        width: 300,
+                        child: _repaymentFrequencyDropdown(isView),
+                      ),
+                    ]),
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+
+                // ── Section 3: Disbursement Details ──────────────────────
+                _sectionCard(
+                  icon: Icons.payments_outlined,
+                  iconColor: const Color(0xFF388E3C),
+                  title: 'Disbursement Details',
+                  subtitle: 'Enter transaction and banking information',
+                  bgColor: const Color(0xFFE8F5E9),
+                  borderColor: const Color(0xFFA5D6A7),
+                  children: [
+                    Wrap(spacing: 24, runSpacing: 20, children: [
+                      _lockedField('Loan Account No', _loanAccountNoCtrl.text,
+                          Icons.account_balance_wallet_outlined),
+                      SizedBox(
+                        width: 300,
+                        child: MFFloatingLabelField(
+                          label: 'Disbursement Amount (INR)',
+                          ctrl: _disbursementAmtCtrl,
+                          icon: Icons.currency_rupee_rounded,
+                          required: !isView,
+                          readOnly: isView,
+                          showLock: isView,
+                          errorText: _disbursementAmountError(),
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 300,
+                        child: MFFloatingLabelField(
+                          label: 'Disbursement Date',
+                          ctrl: _disbursementDateCtrl,
+                          icon: Icons.calendar_month_outlined,
+                          required: !isView,
+                          readOnly: isView,
+                          showLock: isView,
+                        ),
+                      ),
+                      SizedBox(
+                        width: 300,
+                        child: _disbursementModeField(isView),
+                      ),
+                      SizedBox(
+                        width: 300,
+                        child: MFFloatingLabelField(
+                          label: 'Bank Ref No',
+                          ctrl: _bankRefNoCtrl,
+                          icon: Icons.receipt_long_outlined,
+                          readOnly: isView,
+                          showLock: isView,
+                        ),
+                      ),
+                      SizedBox(
+                        width: 300,
+                        child: MFFloatingLabelField(
+                          label: 'Disbursed By User',
+                          ctrl: _disbursedByUserCtrl,
+                          icon: Icons.manage_accounts_outlined,
+                          required: !isView,
+                          readOnly: isView,
+                          showLock: isView,
+                        ),
+                      ),
+                      _lockedField('Seq No', _disbursementSeqNoCtrl.text,
+                          Icons.format_list_numbered_outlined),
+                    ]),
+                  ],
+                ),
+
+                // ── Repayment Schedule Section ───────────────────────────
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text('Repayment Schedule',
+                            style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF1E293B))),
+                        Text(
+                            'Generate installment schedule prior to submission',
+                            style: TextStyle(
+                                fontSize: 12, color: Color(0xFF64748B))),
+                      ],
+                    ),
+                    if (!isView)
+                      ElevatedButton.icon(
+                        onPressed: _generateRepaymentSchedule,
+                        icon: const Icon(Icons.table_chart_outlined, size: 16),
+                        label: const Text('Generate Repayment Schedule',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w600, fontSize: 13)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0288D1),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 18, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                          elevation: 0,
+                        ),
+                      ),
+                  ],
+                ),
+
+                const SizedBox(height: 14),
+
+                if (_repaymentSchedule.isEmpty)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Center(
+                      child: Text(
+                        isView
+                            ? 'No schedule generated for this account.'
+                            : 'Click "Generate Repayment Schedule" above to preview installment plan.',
+                        style: const TextStyle(
+                            color: Color(0xFF94A3B8), fontSize: 13),
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF1E3050),
+                            borderRadius: BorderRadius.vertical(
+                                top: Radius.circular(13)),
+                          ),
+                          child: Row(children: [
+                            Expanded(flex: 3, child: _th('LOAN ACCOUNT NO')),
+                            Expanded(flex: 2, child: _th('INSTALLMENT NO')),
+                            Expanded(flex: 3, child: _th('DUE DATE')),
+                            Expanded(flex: 2, child: _th('PRINCIPAL DUE')),
+                            Expanded(flex: 2, child: _th('INTEREST DUE')),
+                            Expanded(flex: 2, child: _th('TOTAL DUE')),
+                          ]),
+                        ),
+                        ..._repaymentSchedule.asMap().entries.map((e) {
+                          final item = e.value;
+                          final isLast = e.key == _repaymentSchedule.length - 1;
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              border: isLast
+                                  ? null
+                                  : const Border(
+                                      bottom: BorderSide(
+                                          color: Color(0xFFF1F5F9))),
+                            ),
+                            child: Row(children: [
+                              Expanded(
+                                  flex: 3,
+                                  child: Text(item.loanAccountNo,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13,
+                                          color: Color(0xFF1E293B)))),
+                              Expanded(
+                                  flex: 2,
+                                  child: Text('#${item.installmentNo}',
+                                      style: const TextStyle(
+                                          fontSize: 13,
+                                          color: Color(0xFF475569)))),
+                              Expanded(
+                                  flex: 3,
+                                  child: Text(
+                                      item.dueDate
+                                          .toIso8601String()
+                                          .substring(0, 10),
+                                      style: const TextStyle(
+                                          fontSize: 13,
+                                          color: Color(0xFF475569)))),
+                              Expanded(
+                                  flex: 2,
+                                  child: Text('INR ${item.principalDue.toStringAsFixed(2)}',
+                                      style: const TextStyle(
+                                          fontSize: 13,
+                                          color: Color(0xFF475569)))),
+                              Expanded(
+                                  flex: 2,
+                                  child: Text('INR ${item.interestDue.toStringAsFixed(2)}',
+                                      style: const TextStyle(
+                                          fontSize: 13,
+                                          color: Color(0xFF475569)))),
+                              Expanded(
+                                  flex: 2,
+                                  child: Text('INR ${item.totalDue.toStringAsFixed(2)}',
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13,
+                                          color: Color(0xFF1E293B)))),
+                            ]),
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+
+        // ── Bottom action bar ──
+        Container(
+          color: Colors.white,
+          padding:
+              const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              OutlinedButton(
+                onPressed: () => _go(MFView.list),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF334155),
+                  side: const BorderSide(color: Color(0xFFCBD5E1)),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                child: Text(isView ? 'Close' : 'Cancel'),
+              ),
+              if (!isView) ...[
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  onPressed: (_isLoading || _repaymentSchedule.isEmpty) ? null : _submitToAuthQueue,
+                  icon: _isLoading
+                      ? const SizedBox(
+                          width: 16, height: 16,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.send_rounded, size: 16),
+                  label: const Text('Submit to Authorization',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1E3050),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    elevation: 0,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─── Repayment Frequency Dropdown ─────────────────────────────────────────
+
+  Widget _repaymentFrequencyDropdown(bool isView) {
+    if (isView) {
+      return _lockedField(
+          'Repayment Frequency', _repaymentFrequency, Icons.repeat_rounded);
+    }
+    return DropdownButtonFormField<String>(
+      value: _repaymentFrequency,
+      decoration: InputDecoration(
+        labelText: 'Repayment Frequency *',
+        labelStyle:
+            const TextStyle(color: Color(0xFF0288D1), fontSize: 14),
+        prefixIcon: const Icon(Icons.repeat_rounded,
+            color: Color(0xFF0288D1), size: 20),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide:
+                BorderSide(color: Colors.blue.shade100, width: 1)),
+        enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide:
+                BorderSide(color: Colors.blue.shade100, width: 1)),
+        focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(
+                color: Color(0xFF0288D1), width: 1.5)),
+        filled: true,
+        fillColor: Colors.white,
       ),
-    ),
-  );
+      icon: const Icon(Icons.keyboard_arrow_down_rounded,
+          color: Color(0xFF0288D1)),
+      onChanged: (val) =>
+          setState(() {
+            _repaymentFrequency = val ?? 'Monthly';
+            _repaymentSchedule = [];
+          }),
+      items: _frequencies
+          .map((f) => DropdownMenuItem(value: f, child: Text(f)))
+          .toList(),
+    );
+  }
 
-  Widget _statusBadge(String status) {
-    Color bg = const Color(0xFFFEF9C3);
-    Color fg = const Color(0xFFCA8A04);
-    if (status == 'Approved') { bg = const Color(0xFFDCFCE7); fg = const Color(0xFF16A34A); }
-    if (status == 'Rejected') { bg = const Color(0xFFFEE2E2); fg = const Color(0xFFDC2626); }
-    if (status == 'Pending Authorization') { bg = const Color(0xFFDBEAFE); fg = const Color(0xFF2563EB); }
+  // ─── Group Dropdown (native, for G type only) ─────────────────────────────
 
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
-        child: Text(status, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: fg)),
+  Widget _groupDropdown() {
+    return DropdownButtonFormField<String>(
+      value: _groups.any((g) => g['id'] == _selectedGroupId)
+          ? _selectedGroupId
+          : null,
+      decoration: InputDecoration(
+        labelText: 'Group *',
+        labelStyle:
+            const TextStyle(color: Color(0xFF7C3AED), fontSize: 14),
+        prefixIcon: const Icon(Icons.groups_2_outlined,
+            color: Color(0xFF7C3AED), size: 20),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide:
+              BorderSide(color: Colors.purple.shade100, width: 1),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide:
+              BorderSide(color: Colors.purple.shade100, width: 1),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(
+              color: Color(0xFF7C3AED), width: 1.5),
+        ),
+        filled: true,
+        fillColor: Colors.white,
+      ),
+      icon: const Icon(Icons.keyboard_arrow_down_rounded,
+          color: Color(0xFF7C3AED)),
+      hint: const Text('Select a Group',
+          style: TextStyle(color: Color(0xFF94A3B8))),
+      validator: (v) =>
+          v == null || v.isEmpty ? 'Please select a group' : null,
+      onChanged: (val) => setState(() => _selectedGroupId = val),
+      items: _groups.map((g) {
+        return DropdownMenuItem<String>(
+          value: g['id'],
+          child: Text(g['name'] ?? g['id'] ?? '',
+              style: const TextStyle(
+                  fontSize: 13, color: Color(0xFF1E293B))),
+        );
+      }).toList(),
+    );
+  }
+
+  // ─── Disbursement Mode Dropdown ───────────────────────────────────────────
+
+  Widget _disbursementModeField(bool isView) {
+    if (isView) {
+      return _lockedField('Disbursement Mode', _disbursementMode,
+          Icons.account_balance_outlined);
+    }
+    return DropdownButtonFormField<String>(
+      value: _disbursementMode,
+      decoration: InputDecoration(
+        labelText: 'Disbursement Mode *',
+        labelStyle:
+            const TextStyle(color: Color(0xFF0288D1), fontSize: 14),
+        prefixIcon: const Icon(Icons.account_balance_outlined,
+            color: Color(0xFF0288D1), size: 20),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide:
+                BorderSide(color: Colors.blue.shade100, width: 1)),
+        enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide:
+                BorderSide(color: Colors.blue.shade100, width: 1)),
+        focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(
+                color: Color(0xFF0288D1), width: 1.5)),
+        filled: true,
+        fillColor: Colors.white,
+      ),
+      icon: const Icon(Icons.keyboard_arrow_down_rounded,
+          color: Color(0xFF0288D1)),
+      onChanged: (val) =>
+          setState(() => _disbursementMode = val ?? 'Bank'),
+      items: ['Bank', 'Cash', 'Cheque', 'NEFT', 'IMPS', 'UPI']
+          .map((m) => DropdownMenuItem(value: m, child: Text(m)))
+          .toList(),
+    );
+  }
+
+  // ─── Section card wrapper ──────────────────────────────────────────────────
+
+  Widget _sectionCard({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required Color bgColor,
+    required Color borderColor,
+    required List<Widget> children,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: 20, vertical: 16),
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(15)),
+              border: Border(bottom: BorderSide(color: borderColor)),
+            ),
+            child: Row(children: [
+              Icon(icon, color: iconColor, size: 20),
+              const SizedBox(width: 10),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(title,
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: iconColor,
+                        fontSize: 14)),
+                Text(subtitle,
+                    style: const TextStyle(
+                        color: Color(0xFF64748B), fontSize: 12)),
+              ]),
+            ]),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: children),
+          ),
+        ],
       ),
     );
   }
 
-  // ── Form View ──────────────────────────────────────────────────────────────
-  Widget _form({bool isEdit = false, bool isView = false}) {
-    return Column(children: [
-      Expanded(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            _pageHeader(
-              title: isView ? 'View Disbursement details' : 'Complete Disbursement',
-              actions: [
-                _fBtn('Back', Icons.arrow_back_rounded, const Color(0xFF1E3050), Colors.white, const Color(0xFF1E3050), onTap: () => _go(MFView.list)),
-              ],
-            ),
-            _card(child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                _secHdr('DISBURSAL DETAILS'),
-                const SizedBox(height: 16),
-                Wrap(spacing: 24, runSpacing: 24, children: [
-                  SizedBox(width: 300, child: MFApiDropdownField(
-                    label: 'Client Type', icon: Icons.person_outline, required: false,
-                    items: const [{'id': 'I', 'name': 'I - Individual'}, {'id': 'C', 'name': 'C - Corporate'}, {'id': 'G', 'name': 'G - Group'}],
-                    displayKeys: const ['name'],
-                    selectedItem: {'id': _clientType},
-                    onChanged: (v) { if (!isView) setState(() => _clientType = v?['id'] ?? 'I'); },
-                    enabled: !isView,
-                  )),
-                  SizedBox(width: 300, child: MFFloatingLabelField(
-                    label: 'Client ID', ctrl: _clientIdCtrl, icon: Icons.person_outline, required: false,
-                    readOnly: true, showLock: true,
-                  )),
-                  SizedBox(width: 300, child: MFFloatingLabelField(
-                    label: 'Product Code', ctrl: _productCodeCtrl, icon: Icons.category_outlined, required: !isView,
-                    readOnly: isView, showLock: isView,
-                  )),
-                  SizedBox(width: 300, child: MFFloatingLabelField(
-                    label: 'Source System', ctrl: _sourceSystemCtrl, icon: Icons.computer_outlined, required: false,
-                    readOnly: true, showLock: true,
-                  )),
-                  SizedBox(width: 300, child: MFFloatingLabelField(
-                    label: 'Source Ref No', ctrl: _sourceRefNoCtrl, icon: Icons.receipt_long_outlined, required: false,
-                    readOnly: true, showLock: true,
-                  )),
-                  SizedBox(width: 300, child: MFFloatingLabelField(
-                    label: 'Group Code', ctrl: _groupCodeCtrl, icon: Icons.groups_outlined, required: false,
-                    readOnly: true, showLock: true,
-                  )),
-                ]),
-                const SizedBox(height: 32),
-                _secHdr('FINANCIAL DETAILS'),
-                const SizedBox(height: 16),
-                Wrap(spacing: 24, runSpacing: 24, children: [
-                  SizedBox(width: 300, child: MFFloatingLabelField(
-                    label: 'Approved Amount', ctrl: _loanAmtCtrl, icon: Icons.currency_rupee, required: false,
-                    readOnly: true, showLock: true,
-                  )),
-                  SizedBox(width: 300, child: MFFloatingLabelField(
-                    label: 'Approved Tenure (Months)', ctrl: _approvedTenureCtrl, icon: Icons.calendar_today_outlined, required: !isView,
-                    readOnly: isView, showLock: isView, keyboardType: TextInputType.number,
-                  )),
-                  SizedBox(width: 300, child: MFFloatingLabelField(
-                    label: 'Approved Interest Rate (%)', ctrl: _approvedInterestRateCtrl, icon: Icons.percent_outlined, required: !isView,
-                    readOnly: isView, showLock: isView, keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  )),
-                  SizedBox(width: 300, child: MFFloatingLabelField(
-                    label: 'Loan Account No', ctrl: _loanAccountNoCtrl, icon: Icons.account_balance_wallet_outlined, required: false,
-                    readOnly: true, showLock: true,
-                  )),
-                ]),
-                const SizedBox(height: 32),
-                _secHdr('EXECUTION DETAILS'),
-                const SizedBox(height: 16),
-                Wrap(spacing: 24, runSpacing: 24, children: [
-                  SizedBox(width: 300, child: MFFloatingLabelField(
-                    label: 'Disbursement Date', ctrl: _disbursementDateCtrl, icon: Icons.date_range_outlined, required: !isView,
-                    readOnly: isView, showLock: isView,
-                  )),
-                  SizedBox(width: 300, child: MFFloatingLabelField(
-                    label: 'Disbursement Seq No', ctrl: _disbursementSeqNoCtrl, icon: Icons.format_list_numbered_outlined, required: false,
-                    readOnly: true, showLock: true,
-                  )),
-                  SizedBox(width: 300, child: MFApiDropdownField(
-                    label: 'Disbursement Mode', icon: Icons.account_balance_outlined, required: !isView,
-                    items: const [{'id': 'Bank'}, {'id': 'Cash'}, {'id': 'Cheque'}, {'id': 'NEFT'}, {'id': 'IMPS'}, {'id': 'UPI'}],
-                    displayKeys: const ['id'],
-                    selectedItem: {'id': _disbursementMode},
-                    onChanged: (v) { if (!isView) setState(() => _disbursementMode = v?['id'] ?? 'Bank'); },
-                    enabled: !isView,
-                  )),
-                  SizedBox(width: 300, child: MFFloatingLabelField(
-                    label: 'Bank Ref No', ctrl: _bankRefNoCtrl, icon: Icons.receipt_outlined, required: false,
-                    readOnly: isView, showLock: isView,
-                  )),
-                  SizedBox(width: 300, child: MFFloatingLabelField(
-                    label: 'Disbursed By User', ctrl: _disbursedByUserCtrl, icon: Icons.person, required: !isView,
-                    readOnly: isView, showLock: isView,
-                  )),
-                ]),
-                const SizedBox(height: 32),
-                _secHdr('ACCOUNTING INFORMATION'),
-                const SizedBox(height: 16),
-                Wrap(spacing: 24, runSpacing: 24, children: [
-                  SizedBox(width: 300, child: MFFloatingLabelField(
-                    label: 'Acc Posting Ref', ctrl: _accPostingRefCtrl, icon: Icons.receipt_long_outlined, required: false,
-                    readOnly: isView, showLock: isView,
-                  )),
-                  SizedBox(width: 300, child: MFApiDropdownField(
-                    label: 'Acc Posting Status', icon: Icons.check_circle_outline, required: false,
-                    items: const [{'id': 'Pending'}, {'id': 'Posted'}, {'id': 'Failed'}],
-                    displayKeys: const ['id'],
-                    selectedItem: {'id': _accPostingStatus},
-                    onChanged: (v) { if (!isView) setState(() => _accPostingStatus = v?['id'] ?? 'Pending'); },
-                    enabled: !isView,
-                  )),
-                ]),
-              ]),
-            )),
-          ]),
+  // ─── Small helpers ────────────────────────────────────────────────────────
+
+  Widget _th(String t) => Text(t,
+      style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+          letterSpacing: 0.5));
+
+  Widget _iconBtn(IconData icon, Color color, VoidCallback onTap) =>
+      InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: Icon(icon, size: 18, color: color),
         ),
-      ),
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -4))]),
-        child: Row(children: [
-          const Spacer(),
-          if (!isView) ...[
-            const SizedBox(width: 12),
-            _fBtn('Submit to Authorization', Icons.send_rounded, const Color(0xFF1E3050), Colors.white, const Color(0xFF1E3050), onTap: _isLoading ? null : _submitToAuthQueue),
-          ]
-        ]),
-      ),
-    ]);
-  }
+      );
 }

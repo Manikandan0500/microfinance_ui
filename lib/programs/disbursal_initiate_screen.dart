@@ -69,24 +69,7 @@ class _DisbursalInitiateScreenState extends State<DisbursalInitiateScreen> {
     }
   }
 
-<<<<<<< HEAD
-  void _go(MFView v, [DisbursalQueue? r]) {
-    setState(() {
-      _view = v;
-      _sel = r;
-      if (v == MFView.create || v == MFView.edit || v == MFView.view) {
-        _clientType = r?.queueId ?? 'I';
-        _clientIdCtrl.text = r?.clientId ?? '';
-        _loanAmtCtrl.text = r != null ? r.approvedAmount.toString() : '';
-      }
-    });
-  }
-
-  Future<void> _saveRecord(bool isEdit) async {
-    if (_isLoading) return;
-=======
   Future<void> _saveRecord() async {
->>>>>>> 35cdc3eddcffe723ad9156a44c974b718ff8f698
     if (!_formKey.currentState!.validate()) return;
     final loanAmt = double.tryParse(_loanAmtCtrl.text.trim()) ?? 0.0;
     if (loanAmt <= 0) {
@@ -695,70 +678,6 @@ class _DisbursalInitiateScreenState extends State<DisbursalInitiateScreen> {
               ),
             ),
           ),
-<<<<<<< HEAD
-          _fBtn('Initiate Disbursal', Icons.add_rounded, const Color(0xFF1E3050), Colors.white, const Color(0xFF1E3050), onTap: () => _go(MFView.create)),
-        ],
-      ),
-      const SizedBox(height: 16),
-      Expanded(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Container(
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE2E8F0)), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10, offset: const Offset(0, 4))]),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                decoration: const BoxDecoration(color: Color(0xFF1E3050), borderRadius: BorderRadius.vertical(top: Radius.circular(15))),
-                child: Row(children: [
-                  Expanded(flex: 2, child: _colHdr('CLIENT TYPE')),
-                  Expanded(flex: 2, child: _colHdr('CLIENT ID')),
-                  Expanded(flex: 2, child: _colHdr('AMOUNT')),
-                  Expanded(flex: 2, child: _colHdr('STATUS')),
-                  Expanded(flex: 2, child: _colHdr('DATE')),
-                  const SizedBox(width: 80, child: Text('ACTIONS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white70, letterSpacing: 0.5), textAlign: TextAlign.right)),
-                ]),
-              ),
-              if (items.isEmpty)
-                const Padding(padding: EdgeInsets.all(40), child: Center(child: Text('No records found', style: TextStyle(color: Color(0xFF64748B)))))
-              else
-                ...items.asMap().entries.map((e) {
-                  final r = e.value;
-                  final isLast = e.key == items.length - 1;
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                    decoration: BoxDecoration(border: isLast ? null : const Border(bottom: BorderSide(color: Color(0xFFF1F5F9)))),
-                    child: Row(children: [
-                      Expanded(flex: 2, child: Text(r.queueId == 'I' ? 'I Individual' : r.queueId == 'C' ? 'C Corporate' : r.queueId == 'G' ? 'G Group' : r.queueId, style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1E293B)))),
-                      Expanded(flex: 2, child: Text(r.clientId, style: const TextStyle(color: Color(0xFF475569)))),
-                      Expanded(flex: 2, child: Text(r.approvedAmount.toString(), style: const TextStyle(fontSize: 13, color: Color(0xFF334155)))),
-                      Expanded(flex: 2, child: _statusBadge(r.disbursementStatus)),
-                      Expanded(flex: 2, child: Text(r.queuedDate.toIso8601String().substring(0, 10), style: const TextStyle(fontSize: 13, color: Color(0xFF334155)))),
-                      SizedBox(width: 80, child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                        _rowBtn(Icons.visibility_rounded, const Color(0xFF64748B), () => _go(MFView.view, r)), const SizedBox(width: 6),
-                        _rowBtn(Icons.delete_outline_rounded, const Color(0xFFDC2626), () => _go(MFView.delete, r)),
-                      ])),
-                    ]),
-                  );
-                }),
-              if (pages > 1)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFE2E8F0)))),
-                  child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                    Text('Showing $start to $end of ${filtered.length} records', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
-                    Row(children: [
-                      _pageBtn(Icons.chevron_left, _page > 1 ? () => setState(() => _page--) : null),
-                      const SizedBox(width: 8),
-                      Text('Page $_page of $pages', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF1E293B))),
-                      const SizedBox(width: 8),
-                      _pageBtn(Icons.chevron_right, _page < pages ? () => setState(() => _page++) : null),
-                    ]),
-                  ]),
-                ),
-            ]),
-          ),
-=======
->>>>>>> 35cdc3eddcffe723ad9156a44c974b718ff8f698
         ),
 
         // ── Bottom action bar ──
@@ -932,34 +851,6 @@ class _DisbursalInitiateScreenState extends State<DisbursalInitiateScreen> {
                     borderRadius: BorderRadius.circular(10)),
               ),
             ),
-<<<<<<< HEAD
-            _card(child: Form(key: _formKey, child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                _secHdr('DISBURSAL DETAILS'),
-                const SizedBox(height: 16),
-                Wrap(spacing: 24, runSpacing: 24, children: [
-                  SizedBox(width: 300, child: MFApiDropdownField(
-                    label: 'Client Type', icon: Icons.person_outline, required: !isView,
-                    items: const [{'id': 'I', 'name': 'I Individual'}, {'id': 'C', 'name': 'C Corporate'}, {'id': 'G', 'name': 'G Group'}],
-                    displayKeys: const ['name'],
-                    selectedItem: {'id': _clientType, 'name': _clientType == 'I' ? 'I Individual' : _clientType == 'C' ? 'C Corporate' : 'G Group'},
-                    onChanged: (v) { if (!isView) setState(() => _clientType = v?['id'] ?? 'I'); },
-                    enabled: !isView,
-                  )),
-                  SizedBox(width: 300, child: MFFloatingLabelField(
-                    label: 'Client ID', ctrl: _clientIdCtrl, icon: Icons.person_outline, required: !isView,
-                    readOnly: isView, showLock: isView,
-                  )),
-                  SizedBox(width: 300, child: MFFloatingLabelField(
-                    label: 'Loan Amount', ctrl: _loanAmtCtrl, icon: Icons.currency_rupee, required: !isView,
-                    readOnly: isView, showLock: isView, keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  )),
-                ]),
-              ]),
-            ))),
-=======
->>>>>>> 35cdc3eddcffe723ad9156a44c974b718ff8f698
           ]),
         ),
         Expanded(
@@ -1149,15 +1040,6 @@ class _DisbursalInitiateScreenState extends State<DisbursalInitiateScreen> {
           padding: const EdgeInsets.all(4),
           child: Icon(icon, size: 18, color: color),
         ),
-<<<<<<< HEAD
-        Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(children: [
-            Row(children: [ const Text('Client Type: ', style: TextStyle(color: Color(0xFF64748B))), Text(r.queueId == 'I' ? 'I Individual' : r.queueId == 'C' ? 'C Corporate' : r.queueId == 'G' ? 'G Group' : r.queueId, style: const TextStyle(fontWeight: FontWeight.w600)) ]),
-            const SizedBox(height: 8),
-            Row(children: [ const Text('Client ID: ', style: TextStyle(color: Color(0xFF64748B))), Text(r.clientId, style: const TextStyle(fontWeight: FontWeight.w600)) ]),
-          ]),
-=======
       );
 
   Widget _detailRow(String label, String value) => Row(children: [
@@ -1168,7 +1050,6 @@ class _DisbursalInitiateScreenState extends State<DisbursalInitiateScreen> {
                   color: Color(0xFF64748B),
                   fontSize: 13,
                   fontWeight: FontWeight.w500)),
->>>>>>> 35cdc3eddcffe723ad9156a44c974b718ff8f698
         ),
         Text(value,
             style: const TextStyle(

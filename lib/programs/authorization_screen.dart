@@ -3,6 +3,7 @@ import 'dart:async';
 import 'models/auth_models.dart';
 import 'services/queue_api_service.dart';
 import 'mf_shared_widgets.dart';
+import '../am_masters/services/auth_service.dart';
 
 class AuthorizationScreen extends StatefulWidget {
   const AuthorizationScreen({super.key});
@@ -77,11 +78,17 @@ class _AuthorizationScreenState extends State<AuthorizationScreen> {
     if (_sel == null) return;
     setState(() => _isLoading = true);
     try {
+      final userModel = await AuthService().getUser();
+      final userName = [userModel?.fName, userModel?.mName, userModel?.lName]
+          .where((e) => e != null && e.isNotEmpty)
+          .join(' ');
+      final finalUsername = userName.isNotEmpty ? userName : (userModel?.name ?? userModel?.email ?? 'SYS');
+
       await QueueApiService.processAuth(
         authSl: _sel!.authSl,
         action: approve ? '1' : '0',
         level: 1,
-        user: 'admin',
+        user: finalUsername,
       );
       showSuccessDialog(context, 'Record ${approve ? 'approved' : 'rejected'} successfully.', onConfirm: () => _go(MFView.list));
     } catch (e) {
