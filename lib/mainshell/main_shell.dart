@@ -498,7 +498,7 @@ class _MainShellState extends State<MainShell> {
                                       childrenPadding: const EdgeInsets.only(left: 12.0),
                                       initiallyExpanded: false,
                                       children: [
-                                        _buildSubMenuItem('Initiate Disbursal', Icons.send_outlined),
+                                        //_buildSubMenuItem('Initiate Disbursal', Icons.send_outlined),
                                         _buildSubMenuItem('Disbursement Queue', Icons.pending_actions_outlined),
                                       ],
                                     ),
