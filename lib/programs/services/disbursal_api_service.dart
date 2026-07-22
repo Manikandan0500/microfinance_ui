@@ -1,8 +1,21 @@
-import '../models/disbursal_queue.dart';
-import '../models/pending_disbursal.dart';
 import '../mock_database.dart';
 
 class DisbursalApiService {
+  // ── Mock group data for Group (G) client type ──────────────────────────────
+  static const List<Map<String, String>> mockGroups = [
+    {'id': 'GRP-001', 'name': 'GRP-001 – Sunrise SHG'},
+    {'id': 'GRP-002', 'name': 'GRP-002 – Mahila Mandal'},
+    {'id': 'GRP-003', 'name': 'GRP-003 – Grameen JLG'},
+    {'id': 'GRP-004', 'name': 'GRP-004 – Pragati Vikas'},
+    {'id': 'GRP-005', 'name': 'GRP-005 – Sahayak Samiti'},
+  ];
+
+  /// Fetch mock group list (for Group client type)
+  static Future<List<Map<String, String>>> getGroups() async {
+    await Future.delayed(const Duration(milliseconds: 150));
+    return mockGroups;
+  }
+
   /// Fetch all disbursal queue records (DISB001)
   static Future<List<DisbursalQueue>> getDisbursalQueue() async {
     await Future.delayed(const Duration(milliseconds: 300));
@@ -46,8 +59,10 @@ class DisbursalApiService {
   }
 
   /// Submit Disbursement Queue details to Authorization Queue
-  static Future<void> submitToAuthQueue(String loanAccountNo, PendingDisbursal updatedRecord, DisbursalQueue updatedQueue) async {
+  static Future<void> submitToAuthQueue(String loanAccountNo,
+      PendingDisbursal updatedRecord, DisbursalQueue updatedQueue) async {
     await Future.delayed(const Duration(milliseconds: 350));
-    MockDatabase().submitToAuthQueue(loanAccountNo, updatedRecord, updatedQueue);
+    MockDatabase()
+        .submitToAuthQueue(loanAccountNo, updatedRecord, updatedQueue);
   }
 }

@@ -1,9 +1,36 @@
 import 'package:flutter/material.dart';
 import 'mf_shared_widgets.dart';
-import 'models/disbursal_queue.dart';
 import 'services/disbursal_api_service.dart';
 import 'mock_database.dart';
 
+// Helper class for schedule items
+class ScheduleItem {
+  final double installmentAmount;
+  final String loanAccountNo;
+  final double principalDue;
+  final double interestDue;
+  final double totalDue;
+  final DateTime dueDate;
+  final int installmentNo;
+  final String status;
+
+  ScheduleItem({
+    required this.installmentAmount,
+    required this.loanAccountNo,
+    required this.principalDue,
+    required this.interestDue,
+    required this.totalDue,
+    required this.dueDate,
+    required this.installmentNo,
+    required this.status,
+  });
+}
+
+// --------------------------------------------------------------------------
+// Disbursement Queue Screen (DISB002)
+// Records flow here from Initiate Disbursal (DISB001).
+// Users complete all details, generate repayment schedule, and submit to Authorization Queue.
+// --------------------------------------------------------------------------
 class DisbursalPendingScreen extends StatefulWidget {
   const DisbursalPendingScreen({super.key});
   @override
@@ -11,24 +38,32 @@ class DisbursalPendingScreen extends StatefulWidget {
 }
 
 class _DisbursalPendingScreenState extends State<DisbursalPendingScreen> {
+  // ─── Navigation ───────────────────────────────────────────────────────────
   MFView _view = MFView.list;
   PendingDisbursal? _selPending;
   DisbursalQueue? _selQueue;
-  
+
+  // ─── List data ────────────────────────────────────────────────────────────
   List<PendingDisbursal> _data = [];
   String _search = '';
   int _page = 1;
-  final int _size = 10;
+  static const int _pageSize = 10;
   bool _isLoading = false;
 
+  // ─── Form: locked fields from DISB001 ────────────────────────────────────
+  String _clientType = 'I'; // read from DisbursalQueue
   final _queueIdCtrl = TextEditingController();
   final _clientIdCtrl = TextEditingController();
   final _loanAmtCtrl = TextEditingController();
   final _sourceSystemCtrl = TextEditingController();
   final _sourceRefNoCtrl = TextEditingController();
-  final _groupCodeCtrl = TextEditingController();
   final _queuedDateCtrl = TextEditingController();
 
+  // ─── Form: Group (only for clientType == 'G') ─────────────────────────────
+  String? _selectedGroupId;
+  List<Map<String, String>> _groups = [];
+
+  // ─── Form: editable disbursal fields ─────────────────────────────────────
   final _productCodeCtrl = TextEditingController();
   final _approvedTenureCtrl = TextEditingController();
   final _approvedInterestRateCtrl = TextEditingController();
@@ -37,32 +72,103 @@ class _DisbursalPendingScreenState extends State<DisbursalPendingScreen> {
   final _bankRefNoCtrl = TextEditingController();
   final _disbursedByUserCtrl = TextEditingController();
   final _disbursementDateCtrl = TextEditingController();
-  final _accPostingRefCtrl = TextEditingController();
+  final _disbursementAmtCtrl = TextEditingController();
   String _disbursementMode = 'Bank';
-  String _accPostingStatus = 'Pending';
-  String _clientType = 'I';
+
+  // ─── Repayment Frequency ──────────────────────────────────────────────────
+  String _repaymentFrequency = 'Monthly';
+  static const List<String> _frequencies = [
+    'Monthly',
+    'Every 2 Months',
+    'Every 3 Months',
+    'Half Yearly',
+    'Yearly',
+  ];
+
+  // ─── Generated Repayment Schedule ─────────────────────────────────────────
+  List<ScheduleItem> _repaymentSchedule = [];
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _loadGroups();
+    _disbursementAmtCtrl.addListener(_onDisbursementAmtChanged);
+    _approvedTenureCtrl.addListener(_onRepaymentFieldChanged);
+    _approvedInterestRateCtrl.addListener(_onRepaymentFieldChanged);
   }
+
+  void _onDisbursementAmtChanged() {
+    if (_repaymentSchedule.isNotEmpty) {
+      setState(() {
+        _repaymentSchedule = [];
+      });
+    }
+  }
+
+  void _onRepaymentFieldChanged() {
+    if (_repaymentSchedule.isNotEmpty) {
+      setState(() {
+        _repaymentSchedule = [];
+      });
+    }
+  }
+
+  String? _disbursementAmountError() {
+    final loanAmt = double.tryParse(_loanAmtCtrl.text.trim()) ?? 0.0;
+    final disbAmt = double.tryParse(_disbursementAmtCtrl.text.trim()) ?? 0.0;
+    if (disbAmt > loanAmt) {
+      return 'Disbursement Amount cannot be greater than the Loan Amount.';
+    }
+    return null;
+  }
+
+  @override
+  void dispose() {
+    _queueIdCtrl.dispose();
+    _clientIdCtrl.dispose();
+    _loanAmtCtrl.dispose();
+    _sourceSystemCtrl.dispose();
+    _sourceRefNoCtrl.dispose();
+    _queuedDateCtrl.dispose();
+    _productCodeCtrl.dispose();
+    _approvedTenureCtrl.dispose();
+    _approvedInterestRateCtrl.dispose();
+    _loanAccountNoCtrl.dispose();
+    _disbursementSeqNoCtrl.dispose();
+    _bankRefNoCtrl.dispose();
+    _disbursedByUserCtrl.dispose();
+    _disbursementDateCtrl.dispose();
+    _disbursementAmtCtrl.dispose();
+    super.dispose();
+  }
+
+  // ─── Data helpers ─────────────────────────────────────────────────────────
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      _data = await DisbursalApiService.getPendingDisbursals();
+      final records = await DisbursalApiService.getPendingDisbursals();
+      if (mounted) setState(() => _data = records);
     } catch (e) {
-      debugPrint(e.toString());
+      _toast('Failed to load records: $e', isError: true);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  DisbursalQueue? _findQueueRecord(PendingDisbursal pending) {
-    final clientId = pending.loanAccountNo.replaceFirst('L-', '');
+  Future<void> _loadGroups() async {
     try {
-      return MockDatabase().disbursalQueue.firstWhere((q) => q.clientId == clientId);
+      final g = await DisbursalApiService.getGroups();
+      if (mounted) setState(() => _groups = g);
+    } catch (_) {}
+  }
+
+  DisbursalQueue? _findQueueFor(PendingDisbursal p) {
+    final clientId = p.loanAccountNo.replaceFirst('L-', '');
+    try {
+      return MockDatabase().disbursalQueue
+          .firstWhere((q) => q.clientId == clientId);
     } catch (_) {
       return null;
     }
@@ -71,141 +177,286 @@ class _DisbursalPendingScreenState extends State<DisbursalPendingScreen> {
   void _go(MFView v, [PendingDisbursal? r]) {
     setState(() {
       _view = v;
+      _repaymentSchedule = []; // reset schedule on view change
       if (r != null) {
         _selPending = r;
-        _selQueue = _findQueueRecord(r);
-        final queue = _selQueue;
+        _selQueue = _findQueueFor(r);
+        final q = _selQueue;
 
-        _queueIdCtrl.text = queue?.queueId ?? '';
-        _clientIdCtrl.text = queue?.clientId ?? '';
-        _loanAmtCtrl.text = queue?.approvedAmount.toStringAsFixed(2) ?? r.disbursementAmount.toStringAsFixed(2);
-        _sourceSystemCtrl.text = queue?.sourceSystem ?? '';
-        _sourceRefNoCtrl.text = queue?.sourceRefNo ?? '';
-        _groupCodeCtrl.text = queue?.groupCode ?? '';
-        _queuedDateCtrl.text = queue?.queuedDate.toIso8601String().substring(0, 10) ?? '';
+        // Locked fields from DISB001
+        _clientType = q?.clientType ?? 'I';
+        _queueIdCtrl.text = q?.queueId ?? '';
+        _clientIdCtrl.text = q?.clientId ?? '';
+        _loanAmtCtrl.text = q != null
+            ? q.approvedAmount.toStringAsFixed(2)
+            : r.disbursementAmount.toStringAsFixed(2);
+        _sourceSystemCtrl.text = q?.sourceSystem ?? '';
+        _sourceRefNoCtrl.text = q?.sourceRefNo ?? '';
+        _queuedDateCtrl.text =
+            q?.queuedDate.toIso8601String().substring(0, 10) ?? '';
 
-        _productCodeCtrl.text = queue?.productCode ?? '';
-        _approvedTenureCtrl.text = (queue?.approvedTenureMonths ?? 0) > 0 ? queue!.approvedTenureMonths.toString() : '';
-        _approvedInterestRateCtrl.text = (queue?.approvedInterestRate ?? 0) > 0 ? queue!.approvedInterestRate.toString() : '';
+        // Auto-populate Disbursement Amount with the Loan Amount
+        _disbursementAmtCtrl.text = q != null
+            ? q.approvedAmount.toStringAsFixed(2)
+            : r.disbursementAmount.toStringAsFixed(2);
+
+        // Pre-fill group if already set
+        _selectedGroupId = (q?.groupCode?.isNotEmpty ?? false)
+            ? q!.groupCode
+            : null;
+
+        // Editable fields
+        _productCodeCtrl.text = q?.productCode ?? '';
+        _approvedTenureCtrl.text =
+            (q?.approvedTenureMonths ?? 0) > 0
+                ? q!.approvedTenureMonths.toString()
+                : '12';
+        _approvedInterestRateCtrl.text =
+            (q?.approvedInterestRate ?? 0) > 0
+                ? q!.approvedInterestRate.toString()
+                : '12.0';
         _loanAccountNoCtrl.text = r.loanAccountNo;
         _disbursementSeqNoCtrl.text = r.disbursementSeqNo.toString();
         _bankRefNoCtrl.text = r.bankRefNo ?? '';
         _disbursedByUserCtrl.text = r.disbursedByUserId;
-        _disbursementDateCtrl.text = r.disbursementDate.toIso8601String().substring(0, 10);
-        _accPostingRefCtrl.text = r.accPostingRef ?? '';
+        _disbursementDateCtrl.text =
+            r.disbursementDate.toIso8601String().substring(0, 10);
         _disbursementMode = r.disbursementMode;
-        _accPostingStatus = r.accPostingStatus ?? 'Pending';
+        _repaymentFrequency = 'Monthly';
       }
     });
   }
 
+  // ─── Generate Repayment Schedule Logic ────────────────────────────────────
+
+  void _generateRepaymentSchedule({bool showToast = true}) {
+    final amountError = _disbursementAmountError();
+    if (amountError != null) {
+      if (showToast) _toast(amountError, isError: true);
+      return;
+    }
+    final loanAcc = _loanAccountNoCtrl.text.trim();
+    final disbursementAmount = double.tryParse(_disbursementAmtCtrl.text.trim()) ?? 0.0;
+    final tenureMonths = int.tryParse(_approvedTenureCtrl.text.trim()) ?? 12;
+    final startDate = DateTime.tryParse(_disbursementDateCtrl.text.trim()) ?? DateTime.now();
+
+    if (loanAcc.isEmpty) {
+      if (showToast) _toast('Loan Account No is required.', isError: true);
+      return;
+    }
+    if (disbursementAmount <= 0) {
+      if (showToast) _toast('Valid Disbursement Amount is required.', isError: true);
+      return;
+    }
+
+    // Determine installment frequency in months/days
+    int monthsInterval = 1;
+    if (_repaymentFrequency == 'Every 2 Months') monthsInterval = 2;
+    if (_repaymentFrequency == 'Every 3 Months') monthsInterval = 3;
+    if (_repaymentFrequency == 'Half Yearly') monthsInterval = 6;
+    if (_repaymentFrequency == 'Yearly') monthsInterval = 12;
+
+    int totalInstallments = (tenureMonths / monthsInterval).ceil();
+    if (totalInstallments <= 0) totalInstallments = 12;
+
+    double principalDue = disbursementAmount / totalInstallments;
+    // Add minor interest component for mock display
+    double interestRate = double.tryParse(_approvedInterestRateCtrl.text.trim()) ?? 12.0;
+    double interestDue = (disbursementAmount * (interestRate / 100)) / totalInstallments;
+    double totalDue = principalDue + interestDue;
+    double installmentAmount = totalDue;
+
+    List<ScheduleItem> list = [];
+    DateTime currentDate = startDate;
+
+    for (int i = 1; i <= totalInstallments; i++) {
+      currentDate = DateTime(currentDate.year, currentDate.month + monthsInterval, currentDate.day);
+
+      list.add(ScheduleItem(
+        installmentAmount: installmentAmount,
+        loanAccountNo: loanAcc,
+        principalDue: principalDue,
+        interestDue: interestDue,
+        totalDue: totalDue,
+        dueDate: currentDate,
+        installmentNo: i,
+        status: 'Pending',
+      ));
+    }
+
+    setState(() {
+      _repaymentSchedule = list;
+    });
+    if (showToast) {
+      _toast('Repayment schedule generated successfully!', isError: false);
+    }
+  }
+
   Future<void> _submitToAuthQueue() async {
-    if (_loanAccountNoCtrl.text.isEmpty || _productCodeCtrl.text.isEmpty) return;
     if (_selPending == null || _selQueue == null) return;
+    // Validate mandatory Group for Group client type
+    if (_clientType == 'G' && (_selectedGroupId == null || _selectedGroupId!.isEmpty)) {
+      _toast('Please select a Group before submitting.', isError: true);
+      return;
+    }
+    if (_loanAccountNoCtrl.text.isEmpty || _productCodeCtrl.text.isEmpty) {
+      _toast('Loan Account No and Product Code are required.', isError: true);
+      return;
+    }
+    final amountError = _disbursementAmountError();
+    if (amountError != null) {
+      _toast(amountError, isError: true);
+      return;
+    }
+    final disbursementAmount = double.tryParse(_disbursementAmtCtrl.text.trim()) ?? 0.0;
+    if (disbursementAmount <= 0) {
+      _toast('Please enter a valid disbursement amount greater than 0.', isError: true);
+      return;
+    }
 
     final updatedPending = _selPending!.copyWith(
       loanAccountNo: _loanAccountNoCtrl.text.trim(),
       disbursementSeqNo: int.tryParse(_disbursementSeqNoCtrl.text) ?? 1,
-      disbursementAmount: double.tryParse(_loanAmtCtrl.text) ?? _selPending!.disbursementAmount,
+      disbursementAmount: disbursementAmount,
       currencyCode: 'INR',
       disbursementMode: _disbursementMode,
       bankRefNo: _bankRefNoCtrl.text.trim(),
       disbursedByUserId: _disbursedByUserCtrl.text.trim(),
-      disbursementDate: DateTime.tryParse(_disbursementDateCtrl.text) ?? DateTime.now(),
+      disbursementDate:
+          DateTime.tryParse(_disbursementDateCtrl.text) ?? DateTime.now(),
       disbursementStatus: 'Pending Authorization',
-      accPostingRef: _accPostingRefCtrl.text.trim(),
-      accPostingStatus: 'Pending',
     );
 
     final updatedQueue = _selQueue!.copyWith(
       productCode: _productCodeCtrl.text.trim(),
-      approvedTenureMonths: int.tryParse(_approvedTenureCtrl.text) ?? _selQueue!.approvedTenureMonths,
-      approvedInterestRate: double.tryParse(_approvedInterestRateCtrl.text) ?? _selQueue!.approvedInterestRate,
+      groupCode: _selectedGroupId,
+      approvedTenureMonths: int.tryParse(_approvedTenureCtrl.text) ??
+          _selQueue!.approvedTenureMonths,
+      approvedInterestRate: double.tryParse(_approvedInterestRateCtrl.text) ??
+          _selQueue!.approvedInterestRate,
     );
 
     setState(() => _isLoading = true);
     try {
-      await DisbursalApiService.submitToAuthQueue(updatedPending.loanAccountNo, updatedPending, updatedQueue);
+      await DisbursalApiService.submitToAuthQueue(
+          updatedPending.loanAccountNo, updatedPending, updatedQueue);
+      _toast('Submitted to Authorization Queue!', isError: false);
       await _loadData();
-      } catch (e) {
-      debugPrint(e.toString());
+      setState(() => _view = MFView.list);
+    } catch (e) {
+      _toast('Submit failed: $e', isError: true);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // ── UI Helpers ─────────────────────────────────────────────────────────────
-  Widget _pageHeader({required String title, required List<Widget> actions}) => Container(
-    padding: const EdgeInsets.all(24),
-    decoration: const BoxDecoration(color: Colors.white),
-    child: Row(children: [
-      Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF1E293B))),
-      const Spacer(),
-      ...actions,
-    ]),
-  );
+  void _toast(String msg, {required bool isError}) {
+    if (!mounted) return;
+    MFToast.show(context, msg, isError: isError);
+  }
 
-  Widget _secHdr(String t) => Text(t, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF64748B), letterSpacing: 1.2));
-  
-  Widget _card({required Widget child}) => Container(
-    width: double.infinity,
-    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFFE2E8F0))),
-    clipBehavior: Clip.antiAlias,
-    child: child,
-  );
+  // ─── Helpers ──────────────────────────────────────────────────────────────
 
-  Widget _fBtn(String label, IconData icon, Color bg, Color fg, Color border, {VoidCallback? onTap}) =>
-      MouseRegion(
-        cursor: onTap == null ? SystemMouseCursors.forbidden : SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
-            decoration: BoxDecoration(color: onTap == null ? bg.withValues(alpha: 0.5) : bg, borderRadius: BorderRadius.circular(10), border: Border.all(color: onTap == null ? border.withValues(alpha: 0.5) : border, width: 1.5)),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(icon, size: 15, color: fg), const SizedBox(width: 6),
-              Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: fg)),
-            ]),
+  String _clientTypeName(String code) {
+    switch (code) {
+      case 'I': return 'I – Individual';
+      case 'C': return 'C – Corporate';
+      case 'G': return 'G – Group';
+      default:  return code;
+    }
+  }
+
+  Widget _statusBadge(String s) {
+    Color bg, fg;
+    switch (s) {
+      case 'Completed':             bg = const Color(0xFFDCFCE7); fg = const Color(0xFF16A34A); break;
+      case 'Failed':                bg = const Color(0xFFFEE2E2); fg = const Color(0xFFDC2626); break;
+      case 'Pending Authorization': bg = const Color(0xFFDBEAFE); fg = const Color(0xFF2563EB); break;
+      case 'Pending Input':         bg = const Color(0xFFFEF3C7); fg = const Color(0xFFD97706); break;
+      default:                      bg = const Color(0xFFF1F5F9); fg = const Color(0xFF64748B);
+    }
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+        decoration:
+            BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+        child: Text(s,
+            style: TextStyle(
+                fontSize: 11, fontWeight: FontWeight.w600, color: fg)),
+      ),
+    );
+  }
+
+  Widget _lockedField(String label, String value, IconData icon) => SizedBox(
+        width: 300,
+        child: TextFormField(
+          initialValue: value,
+          readOnly: true,
+          style: const TextStyle(
+              color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: label,
+            labelStyle:
+                TextStyle(color: Colors.grey.shade500, fontSize: 14),
+            prefixIcon:
+                Icon(icon, color: Colors.grey.shade400, size: 20),
+            suffixIcon:
+                const Icon(Icons.lock_outline, color: Colors.grey, size: 18),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide:
+                    BorderSide(color: Colors.grey.shade300)),
+            enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide:
+                    BorderSide(color: Colors.grey.shade300)),
+            filled: true,
+            fillColor: Colors.grey.shade50,
           ),
         ),
       );
 
-  Widget _rowBtn(IconData icon, Color c, VoidCallback onTap) =>
-      MouseRegion(cursor: SystemMouseCursors.click, child: GestureDetector(onTap: onTap, child: Icon(icon, size: 18, color: c)));
+  // ─── Build ────────────────────────────────────────────────────────────────
 
-  // ── Main Build ─────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Container(
       color: const Color(0xFFF8FAFC),
-      child: _isLoading && _view == MFView.list
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF1E3050)))
-          : switch (_view) {
-              MFView.list   => _list(),
-              MFView.create => const SizedBox(), // not used
-              MFView.view   => _form(isView: true),
-              MFView.edit   => _form(isEdit: true),
-              MFView.delete => const SizedBox(), // not used
-            },
+      child: switch (_view) {
+        MFView.list   => _buildList(),
+        MFView.view   => _buildForm(isView: true),
+        MFView.edit   => _buildForm(isView: false),
+        MFView.create => _buildList(),
+        MFView.delete => _buildList(),
+      },
     );
   }
 
-  // ── List View ──────────────────────────────────────────────────────────────
-    Widget _list() {
+  // ─── List View ────────────────────────────────────────────────────────────
+
+  Widget _buildList() {
     final filtered = _data.where((r) {
       final q = _search.toLowerCase();
-      return q.isEmpty || r.loanAccountNo.toLowerCase().contains(q) || r.disbursementStatus.toLowerCase().contains(q);
+      return q.isEmpty ||
+          r.loanAccountNo.toLowerCase().contains(q) ||
+          r.disbursementStatus.toLowerCase().contains(q) ||
+          r.disbursementMode.toLowerCase().contains(q);
     }).toList();
 
-    final pages = (filtered.length / _size).ceil();
-    final start = (_page - 1) * _size;
-    final end = (start + _size > filtered.length) ? filtered.length : start + _size;
-    final items = filtered.isEmpty ? <PendingDisbursal>[] : filtered.sublist(start, end);
+    final totalPages =
+        (filtered.length / _pageSize).ceil().clamp(1, 9999);
+    final start = (_page - 1) * _pageSize;
+    final end = (start + _pageSize).clamp(0, filtered.length);
+    final pageItems =
+        filtered.isEmpty ? <PendingDisbursal>[] : filtered.sublist(start, end);
 
-    // Grouping for status cards
-    final pendingAuthCount = _data.where((r) => r.disbursementStatus == 'Pending Auth').length;
-    final pendingInputCount = _data.where((r) => r.disbursementStatus == 'Pending Input').length;
+    final pendingInputCnt =
+        _data.where((r) => r.disbursementStatus == 'Pending Input').length;
+    final pendingAuthCnt = _data
+        .where((r) => r.disbursementStatus == 'Pending Authorization').length;
 
     return Column(children: [
       _pageHeader(title: 'Disbursement Queue', actions: []),
@@ -353,9 +604,9 @@ class _DisbursalPendingScreenState extends State<DisbursalPendingScreen> {
                 Wrap(spacing: 24, runSpacing: 24, children: [
                   SizedBox(width: 300, child: MFApiDropdownField(
                     label: 'Client Type', icon: Icons.person_outline, required: false,
-                    items: const [{'id': 'I', 'name': 'I Individual'}, {'id': 'C', 'name': 'C Corporate'}, {'id': 'G', 'name': 'G Group'}],
+                    items: const [{'id': 'I', 'name': 'I - Individual'}, {'id': 'C', 'name': 'C - Corporate'}, {'id': 'G', 'name': 'G - Group'}],
                     displayKeys: const ['name'],
-                    selectedItem: {'id': _clientType, 'name': _clientType == 'I' ? 'I Individual' : _clientType == 'C' ? 'C Corporate' : 'G Group'},
+                    selectedItem: {'id': _clientType},
                     onChanged: (v) { if (!isView) setState(() => _clientType = v?['id'] ?? 'I'); },
                     enabled: !isView,
                   )),

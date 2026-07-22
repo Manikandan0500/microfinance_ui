@@ -1,6 +1,7 @@
 class DisbursalQueue {
   String orgCode;
   String queueId;
+  String clientType;   // 'I' = Individual, 'C' = Corporate, 'G' = Group
   String sourceSystem;
   String? sourceRefNo;
   String clientId;
@@ -16,6 +17,7 @@ class DisbursalQueue {
   DisbursalQueue({
     required this.orgCode,
     required this.queueId,
+    this.clientType = 'I',
     required this.sourceSystem,
     this.sourceRefNo,
     required this.clientId,
@@ -32,12 +34,13 @@ class DisbursalQueue {
   DisbursalQueue copyWith({
     String? orgCode,
     String? queueId,
+    String? clientType,
     String? sourceSystem,
     String? sourceRefNo,
     String? clientId,
     String? groupCode,
-    String? productCode,
     double? approvedAmount,
+    String? productCode,
     int? approvedTenureMonths,
     double? approvedInterestRate,
     DateTime? queuedDate,
@@ -47,6 +50,7 @@ class DisbursalQueue {
     return DisbursalQueue(
       orgCode: orgCode ?? this.orgCode,
       queueId: queueId ?? this.queueId,
+      clientType: clientType ?? this.clientType,
       sourceSystem: sourceSystem ?? this.sourceSystem,
       sourceRefNo: sourceRefNo ?? this.sourceRefNo,
       clientId: clientId ?? this.clientId,

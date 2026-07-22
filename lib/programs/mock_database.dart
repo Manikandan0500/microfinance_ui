@@ -271,6 +271,7 @@ class MockDatabase extends ChangeNotifier {
     DisbursalQueue(
       orgCode: '101',
       queueId: 'Q-001',
+      clientType: 'G',
       sourceSystem: 'LOS',
       sourceRefNo: 'APP-100201',
       clientId: 'CLI-001',
@@ -286,11 +287,12 @@ class MockDatabase extends ChangeNotifier {
     DisbursalQueue(
       orgCode: '101',
       queueId: 'Q-002',
+      clientType: 'I',
       sourceSystem: 'MANUAL',
       sourceRefNo: null,
       clientId: 'CLI-002',
       groupCode: null,
-      productCode: 'PROD-SHG',
+      productCode: 'DISBQUEUE',
       approvedAmount: 80000.0,
       approvedTenureMonths: 36,
       approvedInterestRate: 16.5,
