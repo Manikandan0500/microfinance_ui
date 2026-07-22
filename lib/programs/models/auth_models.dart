@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 // Auth Configuration model — maps to auth101 table
 class Auth101Config {
   final String id; // programId
@@ -92,7 +94,25 @@ class AuthRecord {
   });
 
   factory AuthRecord.fromJson(Map<String, dynamic> json) {
-    final dataList = (json['dataBlocks'] as List<dynamic>?) ?? [];
+    List<AuthDataBlock> parsedBlocks = [];
+    
+    if (json['dataBlocks'] != null) {
+      parsedBlocks = (json['dataBlocks'] as List<dynamic>)
+          .map((d) => AuthDataBlock.fromJson(d as Map<String, dynamic>))
+          .toList();
+    } else if (json['datablock'] != null) {
+      try {
+        final Map<String, dynamic> decoded = jsonDecode(json['datablock'].toString());
+        parsedBlocks.add(AuthDataBlock(
+          recSl: 1,
+          tableName: (json['programid'] ?? json['programId'] ?? 'DATA').toString(),
+          data: decoded,
+        ));
+      } catch (e) {
+        print('Failed to parse datablock: $e');
+      }
+    }
+
     return AuthRecord(
       orgCode: (json['orgcode'] ?? json['orgCode'] ?? '').toString(),
       effDate: (json['edate'] ?? json['effDate'] ?? '').toString(),
@@ -102,7 +122,7 @@ class AuthRecord {
       displayRemarks: (json['display_remarks'] ?? json['displayRemarks'] ?? json['remarks'] ?? '').toString(),
       eUser: (json['euser'] ?? json['eUser'] ?? '').toString(),
       eDate: (json['edate'] ?? json['eDate'] ?? '').toString(),
-      dataBlocks: dataList.map((d) => AuthDataBlock.fromJson(d as Map<String, dynamic>)).toList(),
+      dataBlocks: parsedBlocks,
     );
   }
 }

@@ -74,8 +74,7 @@ class _AuthorizationScreenState extends State<AuthorizationScreen> {
 
   void _toast(String msg, {bool isError = false}) => MFToast.show(context, msg, isError: isError);
 
-  Future<void> _processRecord(bool approve) async {
-    if (_sel == null) return;
+  Future<void> _processRecord(AuthRecord r, bool approve, BuildContext context) async {
     setState(() => _isLoading = true);
     try {
       final userModel = await AuthService().getUser();
@@ -85,16 +84,63 @@ class _AuthorizationScreenState extends State<AuthorizationScreen> {
       final finalUsername = userName.isNotEmpty ? userName : (userModel?.name ?? userModel?.email ?? 'SYS');
 
       await QueueApiService.processAuth(
-        authSl: _sel!.authSl,
+        authSl: r.authSl,
         action: approve ? '1' : '0',
         level: 1,
         user: finalUsername,
       );
-      showSuccessDialog(context, 'Record ${approve ? 'approved' : 'rejected'} successfully.', onConfirm: () => _go(MFView.list));
+      if (context.mounted) {
+        Navigator.pop(context); // Close detail dialog
+        showSuccessDialog(context, 'Record ${approve ? 'approved' : 'rejected'} successfully.', onConfirm: _loadQueue);
+      }
     } catch (e) {
-      _toast(e.toString().replaceFirst('Exception: ', ''), isError: true);
+      if (context.mounted) _toast(e.toString().replaceFirst('Exception: ', ''), isError: true);
+    } finally {
       setState(() => _isLoading = false);
     }
+  }
+
+  void _showRejectDialog(BuildContext context, AuthRecord r) {
+    final TextEditingController remarksCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        title: const Text('Reject Authorization', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Please provide remarks for rejection:', style: TextStyle(fontSize: 14)),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: 500,
+              child: TextField(
+                controller: remarksCtrl,
+                maxLines: 2,
+                minLines: 2,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  hintText: 'Enter remarks...',
+                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _processRecord(r, false, context);
+            },
+            child: const Text('Reject', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -108,8 +154,7 @@ class _AuthorizationScreenState extends State<AuthorizationScreen> {
     backgroundColor: const Color(0xFFF1F5F9), // Background matching am_masters layout
     body: switch (_view) {
       MFView.list   => _list(),
-      MFView.view   => _detail(),
-      _ => const SizedBox(), // Create, Edit, Delete are not used in this screen
+      _ => _list(),
     },
   );
 
@@ -190,7 +235,7 @@ class _AuthorizationScreenState extends State<AuthorizationScreen> {
                     Expanded(child: Text(r.eUser, style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)))),
                     Expanded(child: Text(r.eDate, style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)))),
                     SizedBox(width: 80, child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      _rowBtn(Icons.visibility_rounded, const Color(0xFF1E3050), () => _go(MFView.view, r)),
+                      _rowBtn(Icons.visibility_rounded, const Color(0xFF1E3050), () => _showDetailDialog(context, r)),
                     ])),
                   ]),
                 );
@@ -201,98 +246,111 @@ class _AuthorizationScreenState extends State<AuthorizationScreen> {
     );
   }
 
-  // ── Detail View ────────────────────────────────────────────────────────────
-  Widget _detail() {
-    if (_sel == null) return const SizedBox();
-    final r = _sel!;
-    return Column(children: [
-      Expanded(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            _pageHeader(title: 'Review Details: ${r.authSl}', actions: [
-              _hBtn('Back', icon: Icons.arrow_back_rounded, onTap: () => _go(MFView.list)),
-            ]),
-            _card(child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Container(width: 48, height: 48, decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.assignment, color: Color(0xFF1E3050))),
-                  const SizedBox(width: 16),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(r.programId, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF1E293B))),
-                    const SizedBox(height: 4),
-                    Row(children: [
-                      const Icon(Icons.person, size: 14, color: Color(0xFF64748B)), const SizedBox(width: 4),
-                      Text('User: ${r.eUser}', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
-                      const SizedBox(width: 12),
-                      const Icon(Icons.calendar_today, size: 14, color: Color(0xFF64748B)), const SizedBox(width: 4),
-                      Text('Date: ${r.eDate}', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
-                    ]),
-                  ])),
-                ]),
-                const SizedBox(height: 32),
-                _secHdr('REMARKS'),
-                const SizedBox(height: 8),
-                Text(r.displayRemarks, style: const TextStyle(fontSize: 14, color: Color(0xFF1E293B))),
-                const SizedBox(height: 32),
-                _secHdr('DATA BLOCKS'),
-                const SizedBox(height: 16),
-                ...r.dataBlocks.map((block) {
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE2E8F0))),
+  void _showDetailDialog(BuildContext context, AuthRecord r) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
+          child: Container(
+            width: 1000,
+            decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(16)),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
+                // Header
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  color: const Color(0xFF1E3050),
+                  child: Row(
+                    children: [
+                      Expanded(child: Text('Review Details: ${r.authSl}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white))),
+                    ]
+                  )
+                ),
+                // Scrollable Body
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          decoration: const BoxDecoration(
-                            border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
-                          ),
-                          child: Row(children: [
-                            const Icon(Icons.table_chart, size: 16, color: Color(0xFF64748B)),
-                            const SizedBox(width: 8),
-                            Text('Table: ${block.tableName}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1E293B))),
-                          ]),
-                        ),
-                        Padding(
+                        _card(child: Padding(
                           padding: const EdgeInsets.all(16),
-                          child: Column(
-                            children: block.data.entries.map((e) => Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 6),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  SizedBox(width: 160, child: Text('${e.key}:', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B)))),
-                                  Expanded(child: Text(e.value.toString(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF1E293B)))),
-                                ],
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Row(children: [
+                              Container(width: 48, height: 48, decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.assignment, color: Color(0xFF1E3050))),
+                              const SizedBox(width: 16),
+                              Expanded(child: Text(r.programId == 'LOANAPP' ? 'Loan Application' : r.programId, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)))),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(20)),
+                                child: Row(children: [
+                                  const Icon(Icons.person, size: 14, color: Color(0xFF64748B)),
+                                  const SizedBox(width: 6),
+                                  Text('User: ${r.eUser}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
+                                ]),
                               ),
-                            )).toList(),
-                          ),
-                        ),
+                            ]),
+                            const SizedBox(height: 8),
+                            ...r.dataBlocks.map((block) {
+                              final hideKeys = ['auser', 'adate', 'euser', 'edate', 'cuser', 'cdate', 'user_name', '__action'];
+                              final filteredEntries = block.data.entries.where((e) => !hideKeys.contains(e.key.toLowerCase())).toList();
+                              
+                              if (filteredEntries.isEmpty) return const SizedBox();
+
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 16),
+                                decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE2E8F0))),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.all(16),
+                                      child: LayoutBuilder(builder: (context, constraints) {
+                                        return Wrap(
+                                          spacing: 24,
+                                          runSpacing: 16,
+                                          children: filteredEntries.map((e) => SizedBox(
+                                            width: (constraints.maxWidth - (24 * 3)) / 4,
+                                            child: _JsonField(label: e.key, value: e.value?.toString() ?? ''),
+                                          )).toList(),
+                                        );
+                                      }),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
+                          ]),
+                        )),
                       ],
                     ),
+                  )
+                ),
+                // Footer Buttons
+                StatefulBuilder(builder: (context, setFooterState) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -4))]),
+                    child: Row(children: [
+                      const Spacer(),
+                      _fBtn('Back', Icons.arrow_back_rounded, const Color(0xFF1E3050), Colors.white, const Color(0xFF1E3050), onTap: () => Navigator.pop(dialogContext)),
+                      const SizedBox(width: 12),
+                      _fBtn('Reject', Icons.close_rounded, const Color(0xFFDC2626), Colors.white, const Color(0xFFDC2626), onTap: _isLoading ? null : () => _showRejectDialog(dialogContext, r)),
+                      const SizedBox(width: 12),
+                      _fBtn('Approve', Icons.check_circle_rounded, const Color(0xFF16A34A), Colors.white, const Color(0xFF16A34A), onTap: _isLoading ? null : () => _processRecord(r, true, dialogContext)),
+                    ]),
                   );
                 }),
-              ]),
-            )),
-          ]),
-        ),
-      ),
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -4))]),
-        child: Row(children: [
-          const Spacer(),
-          _hBtn('Back', onTap: () => _go(MFView.list)),
-          const SizedBox(width: 12),
-          _fBtn('Reject', Icons.close_rounded, const Color(0xFFDC2626), Colors.white, const Color(0xFFDC2626), onTap: _isLoading ? null : () => _processRecord(false)),
-          const SizedBox(width: 12),
-          _fBtn('Approve', Icons.check_circle_rounded, const Color(0xFF16A34A), Colors.white, const Color(0xFF16A34A), onTap: _isLoading ? null : () => _processRecord(true)),
-        ]),
-      ),
-    ]);
+              ],
+            )
+          )
+        );
+      }
+    );
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -383,4 +441,43 @@ class _AuthorizationScreenState extends State<AuthorizationScreen> {
   );
 
   Widget _colHdr(String label) => Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white));
+}
+
+class _JsonField extends StatefulWidget {
+  final String label;
+  final String value;
+  const _JsonField({required this.label, required this.value});
+  @override
+  State<_JsonField> createState() => _JsonFieldState();
+}
+
+class _JsonFieldState extends State<_JsonField> {
+  late TextEditingController _ctrl;
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.value);
+  }
+  @override
+  void didUpdateWidget(_JsonField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value) {
+      _ctrl.text = widget.value;
+    }
+  }
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+  @override
+  Widget build(BuildContext context) {
+    return MFFloatingLabelField(
+      label: widget.label,
+      ctrl: _ctrl,
+      icon: Icons.info_outline,
+      readOnly: true,
+      showLock: false,
+    );
+  }
 }
