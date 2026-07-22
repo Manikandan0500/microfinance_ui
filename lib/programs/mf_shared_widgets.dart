@@ -146,7 +146,7 @@ class _MFFloatingLabelFieldState extends State<MFFloatingLabelField> with Single
 
   @override Widget build(BuildContext context) {
     return FormField<String>(
-      validator: widget.required ? (_) => widget.ctrl.text.trim().isEmpty ? 'Required field' : null : null,
+      validator: widget.required ? (_) => widget.ctrl.text.trim().isEmpty ? '${widget.label.replaceAll('*', '').trim()} is required' : null : null,
       builder: (fieldState) {
         final hasError = widget.errorText != null || fieldState.hasError;
         final errorMsg = widget.errorText ?? fieldState.errorText;
@@ -163,7 +163,7 @@ class _MFFloatingLabelFieldState extends State<MFFloatingLabelField> with Single
           buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: _kText),
           decoration: InputDecoration(
-            hintText: _floated ? widget.hint : '',
+            hintText: _floated ? (widget.hint.isNotEmpty ? widget.hint : 'Enter ${widget.label.replaceAll('*', '').trim()}') : '',
             hintStyle: const TextStyle(fontSize: 12.5, color: Color(0xFFCBD5E1), fontWeight: FontWeight.w400),
             border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none,
             contentPadding: const EdgeInsets.fromLTRB(36, 14, 12, 14), isDense: true,
@@ -322,12 +322,19 @@ class _MFApiDropdownFieldState extends State<MFApiDropdownField>
     final pos = rb.localToGlobal(Offset.zero, ancestor: ov);
     final sz = rb.size;
 
+    final screenH = MediaQuery.of(context).size.height;
+    final spaceBelow = screenH - (pos.dy + sz.height);
+    final openUp = spaceBelow < 290;
+
     _ov = OverlayEntry(builder: (ctx) => GestureDetector(
       behavior: HitTestBehavior.translucent,
       onTap: _rm,
       child: Material(color: Colors.transparent, child: Stack(children: [
         Positioned(
-          left: pos.dx, bottom: ov.size.height - pos.dy + 6, width: sz.width,
+          left: pos.dx, 
+          bottom: openUp ? (screenH - pos.dy + 6) : null,
+          top: openUp ? null : (pos.dy + sz.height + 6), 
+          width: sz.width,
           child: StatefulBuilder(builder: (c2, ss) {
             final q = _sc.text.toLowerCase();
             final filtered = widget.items.where((m) {
@@ -421,13 +428,16 @@ class _MFApiDropdownFieldState extends State<MFApiDropdownField>
 
   @override
   Widget build(BuildContext ctx) {
-    final sel = widget.selectedItem;
-    final err = widget.errorText != null;
-    final bc = err ? _kR : _kP;
-    final disabled = !widget.enabled || widget.isLoading;
-    final placeholderText = sel != null
-        ? _display(sel)
-        : (_floated ? (disabled ? widget.disabledHint : 'Select ${widget.label.toLowerCase()}') : '');
+    return FormField<Map<String, dynamic>>(
+      validator: widget.required ? (_) => widget.selectedItem == null ? '${widget.label.replaceAll('*', '').trim()} is required' : null : null,
+      builder: (fieldState) {
+        final sel = widget.selectedItem;
+        final err = widget.errorText != null || fieldState.hasError;
+        final bc = err ? _kR : _kP;
+        final disabled = !widget.enabled || widget.isLoading;
+        final placeholderText = sel != null
+            ? _display(sel)
+            : (_floated ? (disabled ? widget.disabledHint : 'Please select ${widget.label.replaceAll('*', '').trim()}') : '');
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
       Stack(clipBehavior: Clip.none, children: [
@@ -490,12 +500,14 @@ class _MFApiDropdownFieldState extends State<MFApiDropdownField>
           ),
         ),
       ]),
-      if (widget.errorText != null)
+      if (err)
         Padding(
           padding: const EdgeInsets.only(top: 5, left: 2),
-          child: Text(widget.errorText!, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: _kR, height: 1.2)),
+          child: Text(widget.errorText ?? fieldState.errorText ?? '${widget.label.replaceAll('*', '').trim()} is required', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: _kR, height: 1.2)),
         ),
     ]);
+      },
+    );
   }
 }
 
@@ -660,3 +672,71 @@ void showSuccessDialog(BuildContext context, String message, {VoidCallback? onCo
     ),
   );
 }
+
+// --- Auth Pending Dialog ---
+void showAuthPendingDialog(BuildContext context, {required VoidCallback onGoToQueue}) {
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      child: Container(
+        width: 360,
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72, height: 72,
+              decoration: BoxDecoration(color: const Color(0xFFFEF3C7), shape: BoxShape.circle),
+              child: const Icon(Icons.pending_actions_rounded, color: Color(0xFFD97706), size: 40),
+            ),
+            const SizedBox(height: 24),
+            const Text('Pending Authorization', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
+            const SizedBox(height: 12),
+            const Text(
+              'Record Updated Successfully\nStatus: Pending Authorization',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 15, color: Color(0xFF64748B), height: 1.5),
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFD97706),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
+                ),
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  onGoToQueue();
+                },
+                child: const Text('Go to Authorization Queue', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF64748B),
+                  side: const BorderSide(color: Color(0xFFE2E8F0)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Close', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+

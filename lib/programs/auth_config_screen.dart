@@ -37,7 +37,8 @@ class _AuthConfigScreenState extends State<AuthConfigScreen> {
   final List<Map<String, dynamic>> _programs = [
     {'id': 'LOANMST'}, {'id': 'REGMAS'}, {'id': 'BRANCHMST'}, {'id': 'USERMST'}, 
     {'id': 'LOANDISB'}, {'id': 'LOANDBM'}, {'id': 'LOANPRH'}, {'id': 'LOANGLM'}, 
-    {'id': 'LOANRRH'}, {'id': 'HOLICAL'}, {'id': 'LOANPFC'}, {'id': 'DISBQUEUE'}
+    {'id': 'LOANRRH'}, {'id': 'HOLICAL'}, {'id': 'LOANPFC'}, {'id': 'DISBQUEUE'},
+    {'id': 'LOANAPP'}, {'id': 'CLIENTGRP'}, {'id': 'CLIENTGRPMAP'}
   ];
 
   @override
@@ -113,6 +114,7 @@ class _AuthConfigScreenState extends State<AuthConfigScreen> {
   }
 
   Future<void> _saveRecord() async {
+    if (_isLoading) return;
     if (_programCtrl.text.isEmpty) {
       _toast('Please select a Program Id', isError: true);
       return;

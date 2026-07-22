@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'services/client_group_api_service.dart';
 import 'models/client_group_master.dart';
+import 'models/cif_master.dart';
 import 'mf_shared_widgets.dart';
 import '../am_masters/services/auth_service.dart';
 
 class ClientGroupMemberMapScreen extends StatefulWidget {
-  const ClientGroupMemberMapScreen({super.key});
+  final VoidCallback? onNavigateToAuthQueue;
+  const ClientGroupMemberMapScreen({super.key, this.onNavigateToAuthQueue});
 
   @override
   State<ClientGroupMemberMapScreen> createState() => _ClientGroupMemberMapScreenState();
@@ -24,6 +26,8 @@ class _ClientGroupMemberMapScreenState extends State<ClientGroupMemberMapScreen>
   final int _itemsPerPage = 10;
   
   List<ClientGroupMemberMap> _data = [];
+  List<ClientGroupMaster> _groupMasters = [];
+  List<CifMaster> _cifMasters = [];
   String _currentOrgCode = '101'; // Default
 
   final _formKey = GlobalKey<FormState>();
@@ -33,6 +37,7 @@ class _ClientGroupMemberMapScreenState extends State<ClientGroupMemberMapScreen>
   final _memberRoleCtrl = TextEditingController(text: 'Member');
   bool _memberStatus = true;
   DateTime _joinDate = DateTime.now();
+  String? _formErr;
 
   @override
   void initState() {
@@ -55,9 +60,19 @@ class _ClientGroupMemberMapScreenState extends State<ClientGroupMemberMapScreen>
       _loadError = null;
     });
     try {
-      _data = await ClientGroupApiService.getClientGroupMemberMaps();
+      final futures = await Future.wait([
+        ClientGroupApiService.getClientGroupMemberMaps(),
+        ClientGroupApiService.getClientGroups(),
+        ClientGroupApiService.getCifMasters(),
+      ]);
+      _data = futures[0] as List<ClientGroupMemberMap>;
+      _groupMasters = futures[1] as List<ClientGroupMaster>;
+      _cifMasters = futures[2] as List<CifMaster>;
+
       // Filter by org
       _data = _data.where((e) => e.orgCode == _currentOrgCode).toList();
+      _groupMasters = _groupMasters.where((e) => e.orgCode == _currentOrgCode).toList();
+      _cifMasters = _cifMasters.where((e) => e.orgCode == _currentOrgCode).toList();
     } catch (e) {
       _loadError = e.toString();
     } finally {
@@ -70,13 +85,15 @@ class _ClientGroupMemberMapScreenState extends State<ClientGroupMemberMapScreen>
       _view = v;
       _sel = r;
       _delConfirmed = false;
+      _formErr = null;
       if (v == MFView.create) {
         _groupCodeCtrl.clear();
         _clientIdCtrl.clear();
         _memberRoleCtrl.text = 'Member';
         _joinDate = DateTime.now();
         _memberStatus = true;
-      } else if (r != null && (v == MFView.edit || v == MFView.view)) {
+        _memberStatus = true;
+      } else if (r != null && (v == MFView.edit || v == MFView.view || v == MFView.delete)) {
         _groupCodeCtrl.text = r.groupCode;
         _clientIdCtrl.text = r.clientId;
         _memberRoleCtrl.text = r.memberRole;
@@ -87,7 +104,8 @@ class _ClientGroupMemberMapScreenState extends State<ClientGroupMemberMapScreen>
   }
 
   Future<void> _saveRecord(bool isEdit) async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    
     setState(() => _isLoading = true);
     try {
       final record = ClientGroupMemberMap(
@@ -99,26 +117,33 @@ class _ClientGroupMemberMapScreenState extends State<ClientGroupMemberMapScreen>
         memberStatus: _memberStatus ? 'A' : 'C',
       );
 
+      String? message;
       if (isEdit) {
-        await ClientGroupApiService.updateClientGroupMemberMap(record);
-        showSuccessDialog(context, 'Member mapped successfully', onConfirm: () {
-          _loadData();
-          _go(MFView.list);
-        });
+        message = await ClientGroupApiService.updateClientGroupMemberMap(record);
       } else {
         // Check duplicates if create
         if (_data.any((e) => e.groupCode == record.groupCode && e.clientId == record.clientId)) {
           throw Exception('This client is already mapped to this group.');
         }
-        await ClientGroupApiService.createClientGroupMemberMap(record);
+        message = await ClientGroupApiService.createClientGroupMemberMap(record);
+      }
+
+      if (message == 'Sent for authorization') {
+        showAuthPendingDialog(context, onGoToQueue: () {
+          if (widget.onNavigateToAuthQueue != null) {
+            widget.onNavigateToAuthQueue!();
+          }
+        });
+        _loadData();
+        _go(MFView.list);
+      } else {
         showSuccessDialog(context, 'Member mapped successfully', onConfirm: () {
           _loadData();
           _go(MFView.list);
         });
       }
     } catch (e) {
-      MFToast.show(context, e.toString().replaceFirst('Exception: ', ''), isError: true);
-      setState(() => _isLoading = false);
+      setState(() { _formErr = e.toString().replaceFirst('Exception: ', ''); _isLoading = false; });
     }
   }
 
@@ -193,6 +218,18 @@ class _ClientGroupMemberMapScreenState extends State<ClientGroupMemberMapScreen>
         ),
       );
 
+  Widget _rowBtn(IconData icon, Color c, VoidCallback onTap) => MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(6)),
+            child: Icon(icon, size: 15, color: c),
+          ),
+        ),
+      );
+
   Widget _colHdr(String label) => Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white));
 
   // List View
@@ -206,225 +243,236 @@ class _ClientGroupMemberMapScreenState extends State<ClientGroupMemberMapScreen>
     final pages = (filtered.length / _itemsPerPage).ceil();
     final start = (_currentPage - 1) * _itemsPerPage;
     final end = (start + _itemsPerPage > filtered.length) ? filtered.length : start + _itemsPerPage;
-    final items = filtered.sublist(start, end);
+    final pagedList = filtered.isEmpty ? <ClientGroupMemberMap>[] : filtered.sublist(start, end);
+    final activeCount = _data.where((e) => e.memberStatus == 'A').length;
+    final inactiveCount = _data.length - activeCount;
 
-    return Column(children: [
-      _pageHeader(
-        title: 'Client Group Member Map',
-        actions: [
-          Container(
-            width: 300,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFE2E8F0))),
-            child: Row(children: [
-              const Icon(Icons.search_rounded, color: Color(0xFF94A3B8), size: 20),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextField(
-                  decoration: const InputDecoration(hintText: 'Search group or client...', border: InputBorder.none, hintStyle: TextStyle(color: Color(0xFF94A3B8), fontSize: 13)),
-                  onChanged: (v) {
-                    if (_debounce?.isActive ?? false) _debounce!.cancel();
-                    _debounce = Timer(const Duration(milliseconds: 300), () => setState(() { _search = v; _currentPage = 1; }));
-                  },
-                ),
-              ),
-            ]),
-          ),
-          const SizedBox(width: 16),
-          _fBtn('Map Client', Icons.add_rounded, const Color(0xFF1E3050), Colors.white, const Color(0xFF1E3050), onTap: () => _go(MFView.create)),
-        ],
-      ),
-      Expanded(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: _card(
-            child: Column(children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                decoration: const BoxDecoration(color: Color(0xFF1E3050)),
-                child: Row(children: [
-                  Expanded(flex: 2, child: _colHdr('GROUP CODE')),
-                  Expanded(flex: 2, child: _colHdr('CLIENT ID')),
-                  Expanded(flex: 2, child: _colHdr('ROLE')),
-                  Expanded(flex: 2, child: _colHdr('JOIN DATE')),
-                  Expanded(flex: 2, child: _colHdr('STATUS')),
-                  const SizedBox(width: 80, child: Text('ACTIONS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white), textAlign: TextAlign.right)),
-                ]),
-              ),
-              if (_isLoading)
-                const Expanded(child: Center(child: CircularProgressIndicator(color: Color(0xFF1E3050))))
-              else if (_loadError != null)
-                Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.error_outline_rounded, size: 48, color: Color(0xFFDC2626)), const SizedBox(height: 16),
-                  Text(_loadError!, style: const TextStyle(color: Color(0xFFDC2626))), const SizedBox(height: 16),
-                  _hBtn('Retry', icon: Icons.refresh_rounded, onTap: _loadData),
-                ])))
-              else if (items.isEmpty)
-                const Expanded(child: Center(child: Text('No mapping records found', style: TextStyle(color: Color(0xFF64748B)))))
-              else
-                Expanded(
-                  child: ListView.separated(
-                    padding: EdgeInsets.zero,
-                    itemCount: items.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFE2E8F0)),
-                    itemBuilder: (_, i) {
-                      final r = items[i];
-                      return InkWell(
-                        onTap: () => _go(MFView.view, r),
-                        hoverColor: const Color(0xFFF8FAFC),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                          child: Row(children: [
-                            Expanded(flex: 2, child: Text(r.groupCode, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)))),
-                            Expanded(flex: 2, child: Text(r.clientId, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)))),
-                            Expanded(flex: 2, child: Text(r.memberRole, style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)))),
-                            Expanded(flex: 2, child: Text(r.joinDate.toIso8601String().substring(0, 10), style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)))),
-                            Expanded(flex: 2, child: Row(children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(color: r.memberStatus == 'A' ? const Color(0xFFDCFCE7) : const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(6)),
-                                child: Text(r.memberStatus == 'A' ? 'Active' : 'Exited', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: r.memberStatus == 'A' ? const Color(0xFF16A34A) : const Color(0xFF64748B))),
-                              ),
-                            ])),
-                            SizedBox(width: 80, child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                              MouseRegion(
-                                cursor: SystemMouseCursors.click,
-                                child: GestureDetector(
-                                  onTap: () => _go(MFView.view, r),
-                                  child: Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(6)), child: const Icon(Icons.visibility_rounded, size: 16, color: Color(0xFF1E3050))),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              MouseRegion(
-                                cursor: SystemMouseCursors.click,
-                                child: GestureDetector(
-                                  onTap: () => _go(MFView.edit, r),
-                                  child: Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(6)), child: const Icon(Icons.edit_rounded, size: 16, color: Color(0xFF1E3050))),
-                                ),
-                              ),
-                            ])),
-                          ]),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              if (pages > 1)
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFE2E8F0)))),
-                  child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                    Text('Showing $start to $end of ${filtered.length} entries', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
-                    Row(children: [
-                      _hBtn('Prev', icon: Icons.chevron_left_rounded, onTap: _currentPage > 1 ? () => setState(() => _currentPage--) : () {}),
-                      const SizedBox(width: 8),
-                      Text('Page $_currentPage of $pages', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF1E293B))),
-                      const SizedBox(width: 8),
-                      _hBtn('Next', icon: Icons.chevron_right_rounded, onTap: _currentPage < pages ? () => setState(() => _currentPage++) : () {}),
-                    ]),
-                  ]),
-                ),
-            ]),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('Client Group Member Map', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
+        const SizedBox(height: 24),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          MFActiveInactiveSummary(activeCount: activeCount, inactiveCount: inactiveCount),
+        ]),
+        const SizedBox(height: 16),
+      Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+        SizedBox(
+          width: 300, height: 40,
+          child: TextField(
+            decoration: InputDecoration(
+              hintText: 'Search group or client...',
+              prefixIcon: const Icon(Icons.search, size: 18, color: Color(0xFF64748B)),
+              filled: true, fillColor: Colors.white,
+              contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+            ),
+            onChanged: (v) {
+              if (_debounce?.isActive ?? false) _debounce!.cancel();
+              _debounce = Timer(const Duration(milliseconds: 300), () => setState(() { _search = v; _currentPage = 1; }));
+            },
           ),
         ),
+        const SizedBox(width: 16),
+        ElevatedButton(
+          onPressed: () => _go(MFView.create),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF1E293B),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+            minimumSize: const Size(0, 40),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            elevation: 0,
+          ),
+          child: const Text('CREATE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+        ),
+      ]),
+      const SizedBox(height: 16),
+      _card(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: const BoxDecoration(
+              color: Color(0xFF1E3050),
+              border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+            ),
+            child: Row(children: [
+              Expanded(flex: 2, child: _colHdr('GROUP CODE')),
+              Expanded(flex: 2, child: _colHdr('CLIENT ID')),
+              Expanded(flex: 2, child: _colHdr('ROLE')),
+              Expanded(flex: 2, child: _colHdr('JOIN DATE')),
+              Expanded(flex: 2, child: _colHdr('STATUS')),
+              const SizedBox(width: 110, child: Text('ACTIONS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white), textAlign: TextAlign.center)),
+            ]),
+          ),
+          if (_isLoading)
+            const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator(color: Color(0xFF1E3050))))
+          else if (_loadError != null)
+            Padding(padding: const EdgeInsets.all(40), child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.error_outline_rounded, size: 48, color: Color(0xFFDC2626)), const SizedBox(height: 16),
+              Text(_loadError!, style: const TextStyle(color: Color(0xFFDC2626))), const SizedBox(height: 16),
+              _hBtn('Retry', icon: Icons.refresh_rounded, onTap: _loadData),
+            ])))
+          else if (pagedList.isEmpty)
+            const Padding(padding: EdgeInsets.all(40), child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.inbox_rounded, size: 48, color: Color(0xFFCBD5E1)), const SizedBox(height: 16),
+              Text('No mapping records found', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Color(0xFF64748B))),
+            ])))
+          else
+            ListView.separated(
+              shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
+              itemCount: pagedList.length,
+              separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFF1F5F9)),
+              itemBuilder: (_, i) {
+                final r = pagedList[i];
+                return Container(
+                  color: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  child: Row(children: [
+                    Expanded(flex: 2, child: Text(r.groupCode, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)))),
+                    Expanded(flex: 2, child: Text(r.clientId, style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)))),
+                    Expanded(flex: 2, child: Text(r.memberRole, style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)))),
+                    Expanded(flex: 2, child: Text(r.joinDate.toIso8601String().substring(0, 10), style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)))),
+                    Expanded(flex: 2, child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(color: r.memberStatus == 'A' ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2), borderRadius: BorderRadius.circular(12)),
+                      child: Text(r.memberStatus == 'A' ? 'Active' : 'Inactive', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: r.memberStatus == 'A' ? const Color(0xFF166534) : const Color(0xFF991B1B))),
+                    )),
+                    SizedBox(width: 110, child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      _rowBtn(Icons.visibility_rounded, const Color(0xFF64748B), () => _go(MFView.view, r)), const SizedBox(width: 6),
+                      _rowBtn(Icons.edit_rounded, const Color(0xFF1E3050), () => _go(MFView.edit, r)), const SizedBox(width: 6),
+                      _rowBtn(Icons.delete_rounded, const Color(0xFFDC2626), () => _go(MFView.delete, r)),
+                    ])),
+                  ]),
+                );
+              },
+            ),
+        ]),
       ),
-    ]);
+      const SizedBox(height: 16),
+      Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          MFPaginationControls(
+            currentPage: _currentPage,
+            totalPages: pages,
+            onPrev: _currentPage > 1 ? () => setState(() => _currentPage--) : null,
+            onNext: _currentPage < pages ? () => setState(() => _currentPage++) : null,
+          ),
+        ],
+      ),
+    ]));
   }
+
+  Widget _fieldBox(Widget child, BoxConstraints c) => SizedBox(width: (c.maxWidth - (24 * 3)) / 4, child: child);
 
   // Form View (Create, Edit & View)
   Widget _form() {
     final isEdit = _view == MFView.edit;
     final isView = _view == MFView.view;
-    return Column(children: [
-      _pageHeader(
-        title: isView ? 'View Mapping' : (isEdit ? 'Edit Mapping' : 'Map Client to Group'),
-        actions: [
-          _hBtn('Back', icon: Icons.arrow_back_rounded, onTap: () => _go(MFView.list)),
-          if (isView) ...[
-            const SizedBox(width: 10),
-            _hBtn('Edit', icon: Icons.edit_rounded, fg: const Color(0xFF1E3050), border: const Color(0xFF1E3050), onTap: () => _go(MFView.edit, _sel)),
-          ]
-        ],
-      ),
-      Expanded(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(children: [
-            _card(child: Form(
-              key: _formKey,
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  _secHdr('MAPPING DETAILS'),
-                  const SizedBox(height: 16),
-                  Wrap(spacing: 24, runSpacing: 24, children: [
-                    SizedBox(width: 300, child: MFFloatingLabelField(
-                      label: 'Group Code', ctrl: _groupCodeCtrl, icon: Icons.group_work_rounded, required: !isView,
-                      readOnly: isEdit || isView, showLock: isEdit || isView,
-                    )),
-                    SizedBox(width: 300, child: MFFloatingLabelField(
-                      label: 'Client ID', ctrl: _clientIdCtrl, icon: Icons.person_outline, required: !isView,
-                      readOnly: isEdit || isView, showLock: isEdit || isView,
-                    )),
-                    SizedBox(width: 300, child: MFApiDropdownField(
-                      label: 'Role', icon: Icons.star_border, required: !isView,
-                      items: const [{'id': 'Leader'}, {'id': 'Member'}],
-                      displayKeys: const ['id'],
-                      selectedItem: {'id': _memberRoleCtrl.text},
-                      onChanged: (v) => _memberRoleCtrl.text = v?['id'] ?? 'Member',
-                      enabled: !isView,
-                    )),
-                  ]),
-                  const SizedBox(height: 32),
-                  _secHdr('STATUS'),
-                  const SizedBox(height: 16),
-                  Row(children: [
-                    const Text('Active Mapping', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B))),
-                    const SizedBox(width: 12),
-                    Switch(
-                      value: _memberStatus,
-                      onChanged: isView ? null : (v) => setState(() => _memberStatus = v),
-                      activeColor: const Color(0xFF1E3050),
-                      activeTrackColor: const Color(0xFFCBD5E1),
-                    ),
-                  ]),
-                ]),
-              ),
-            )),
-            if (isView) ...[
-              const SizedBox(height: 24),
-              _card(child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  _secHdr('DANGER ZONE'),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(color: const Color(0xFFFEF2F2), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFFCA5A5))),
-                    child: Row(children: [
-                      const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text('Remove Mapping', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF991B1B))),
-                        SizedBox(height: 4),
-                        Text('This will unmap the client from the group.', style: TextStyle(fontSize: 12, color: Color(0xFFB91C1C))),
-                      ])),
-                      _hBtn(_delConfirmed ? 'Confirm Unmap' : 'Unmap Client', icon: Icons.person_remove_rounded, fg: const Color(0xFFDC2626), border: const Color(0xFFFCA5A5), onTap: _isLoading ? () {} : _deleteRecord),
-                    ]),
-                  ),
-                ]),
-              )),
-            ] else ...[
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  _fBtn(isEdit ? 'Save Changes' : 'Map Client', isEdit ? Icons.save_rounded : Icons.check_circle_rounded, const Color(0xFF1E3050), Colors.white, const Color(0xFF1E3050), onTap: _isLoading ? null : () => _saveRecord(isEdit)),
-                ],
-              ),
-            ],
+    final isDelete = _view == MFView.delete;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 120),
+      child: Form(
+        key: _formKey,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const SizedBox(height: 16),
+          Row(children: [
+            IconButton(icon: const Icon(Icons.arrow_back_rounded), onPressed: () => _go(MFView.list)),
+            Text(isView ? 'View Mapping' : (isEdit ? 'Edit Mapping' : (isDelete ? 'Delete Mapping' : 'Map Client to Group')),
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           ]),
-        ),
+          const SizedBox(height: 24),
+          if (_formErr != null)
+            Container(margin: const EdgeInsets.only(bottom: 24), padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: const Color(0xFFFEF2F2), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFFCA5A5))), child: Text(_formErr!, style: const TextStyle(color: Color(0xFF991B1B)))),
+          _card(child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: LayoutBuilder(builder: (context, constraints) {
+              return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                _secHdr('MAPPING DETAILS'),
+                const SizedBox(height: 32),
+                Wrap(spacing: 24, runSpacing: 40, children: [
+                  _fieldBox(MFApiDropdownField(
+                    label: 'Group Code',
+                    icon: Icons.group_work_rounded,
+                    required: !isView && !isDelete,
+                    items: _groupMasters.map((g) => {'id': g.groupCode, 'name': g.groupName}).toList(),
+                    displayKeys: const ['id', 'name'],
+                    selectedItem: _groupCodeCtrl.text.isNotEmpty ? {'id': _groupCodeCtrl.text} : null,
+                    onChanged: (v) => setState(() => _groupCodeCtrl.text = v?['id'] ?? ''),
+                    enabled: !isEdit && !isView && !isDelete,
+                  ), constraints),
+                  _fieldBox(MFApiDropdownField(
+                    label: 'Client ID',
+                    icon: Icons.person_outline,
+                    required: !isView && !isDelete,
+                    items: _cifMasters.map((c) => {'id': c.cifId, 'name': c.fullName}).toList(),
+                    displayKeys: const ['id', 'name'],
+                    selectedItem: _clientIdCtrl.text.isNotEmpty ? {'id': _clientIdCtrl.text} : null,
+                    onChanged: (v) => setState(() => _clientIdCtrl.text = v?['id'] ?? ''),
+                    enabled: !isEdit && !isView && !isDelete,
+                  ), constraints),
+                  _fieldBox(MFApiDropdownField(
+                    label: 'Role', icon: Icons.star_border, required: !isView && !isDelete,
+                    items: const [{'id': 'Leader'}, {'id': 'Member'}],
+                    displayKeys: const ['id'],
+                    selectedItem: {'id': _memberRoleCtrl.text},
+                    onChanged: (v) => setState(() => _memberRoleCtrl.text = v?['id'] ?? 'Member'),
+                    enabled: !isView && !isDelete,
+                  ), constraints),
+                ]),
+                const SizedBox(height: 32),
+                _secHdr('STATUS'),
+                const SizedBox(height: 32),
+                Switch(
+                  value: _memberStatus,
+                  onChanged: (isView || isDelete) ? null : (v) => setState(() => _memberStatus = v),
+                ),
+              ]);
+            }),
+          )),
+          if (isDelete) ...[
+            const SizedBox(height: 24),
+            _card(child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                _secHdr('DANGER ZONE'),
+                const SizedBox(height: 32),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(color: const Color(0xFFFEF2F2), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFFCA5A5))),
+                  child: Row(children: [
+                    const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('Remove Mapping', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF991B1B))),
+                      SizedBox(height: 4),
+                      Text('This will unmap the client from the group.', style: TextStyle(fontSize: 12, color: Color(0xFFB91C1C))),
+                    ])),
+                    _hBtn(_delConfirmed ? 'Confirm Unmap' : 'Unmap Client', icon: Icons.person_remove_rounded, fg: const Color(0xFFDC2626), border: const Color(0xFFFCA5A5), onTap: _isLoading ? () {} : _deleteRecord),
+                  ]),
+                ),
+              ]),
+            )),
+          ],
+          if (!isView && !isDelete)
+            Padding(
+              padding: const EdgeInsets.only(top: 24),
+              child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                _hBtn('Cancel', icon: Icons.close_rounded, onTap: () => _go(MFView.list)),
+                const SizedBox(width: 16),
+                ElevatedButton(
+                  onPressed: _isLoading ? null : () => _saveRecord(isEdit),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1E293B), padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 0,
+                  ),
+                  child: Text(isEdit ? 'SAVE CHANGES' : 'CREATE', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                ),
+              ]),
+            ),
+        ]),
       ),
-    ]);
+    );
   }
 
   @override

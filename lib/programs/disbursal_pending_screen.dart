@@ -353,9 +353,9 @@ class _DisbursalPendingScreenState extends State<DisbursalPendingScreen> {
                 Wrap(spacing: 24, runSpacing: 24, children: [
                   SizedBox(width: 300, child: MFApiDropdownField(
                     label: 'Client Type', icon: Icons.person_outline, required: false,
-                    items: const [{'id': 'I', 'name': 'I - Individual'}, {'id': 'C', 'name': 'C - Corporate'}, {'id': 'G', 'name': 'G - Group'}],
+                    items: const [{'id': 'I', 'name': 'I Individual'}, {'id': 'C', 'name': 'C Corporate'}, {'id': 'G', 'name': 'G Group'}],
                     displayKeys: const ['name'],
-                    selectedItem: {'id': _clientType},
+                    selectedItem: {'id': _clientType, 'name': _clientType == 'I' ? 'I Individual' : _clientType == 'C' ? 'C Corporate' : 'G Group'},
                     onChanged: (v) { if (!isView) setState(() => _clientType = v?['id'] ?? 'I'); },
                     enabled: !isView,
                   )),

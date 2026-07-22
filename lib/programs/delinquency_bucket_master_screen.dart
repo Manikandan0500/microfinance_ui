@@ -462,7 +462,7 @@ class _DelinquencyBucketMasterScreenState extends State<DelinquencyBucketMasterS
               Container(width: 48, height: 48, decoration: BoxDecoration(color: const Color(0xFFE3F2FD), borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.assignment_late, color: Color(0xFF1E3050))),
               const SizedBox(width: 16),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('${r.delinquencyCode} - ${r.bucketLabel}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF1E293B))),
+                Text('${r.delinquencyCode} ${r.bucketLabel}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF1E293B))),
                 const SizedBox(height: 4),
                 Row(children: [
                   _statusBadge(r.bucketStatus),

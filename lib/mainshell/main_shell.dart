@@ -361,6 +361,7 @@ class _MainShellState extends State<MainShell> {
           // Body below header
           Expanded(
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Sidebar with Hover effect
                 MouseRegion(
@@ -477,11 +478,11 @@ class _MainShellState extends State<MainShell> {
                                   ),
                                 _buildMenuItem(
                                   icon: Icons.account_box_outlined,
-                                  title: 'Loan Account Master',
-                                  isSelected: _selectedPage == 'Loan Account Master',
+                                  title: 'Loan Account Application',
+                                  isSelected: _selectedPage == 'Loan Account Application',
                                   onTap: () {
                                     setState(() {
-                                      _selectedPage = 'Loan Account Master';
+                                      _selectedPage = 'Loan Account Application';
                                     });
                                   },
                                 ),
@@ -626,11 +627,11 @@ class _MainShellState extends State<MainShell> {
       case 'Holiday Calendar':
         return const HolidayCalendarScreen();
       case 'Group Creation':
-        return const ClientGroupMasterScreen();
+        return ClientGroupMasterScreen(onNavigateToAuthQueue: () => setState(() => _selectedPage = 'Authorization Queue'));
       case 'Group Mapping':
-        return const ClientGroupMemberMapScreen();
-      case 'Loan Account Master':
-        return const LoanAccountMasterScreen();
+        return ClientGroupMemberMapScreen(onNavigateToAuthQueue: () => setState(() => _selectedPage = 'Authorization Queue'));
+      case 'Loan Account Application':
+        return LoanAccountMasterScreen(onNavigateToAuthQueue: () => setState(() => _selectedPage = 'Authorization Queue'));
       // ── AM Masters ────────────────────────────────────────────────────────
       case 'Organizations':
         return const Organizations();

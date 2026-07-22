@@ -54,6 +54,7 @@ class _DisbursalInitiateScreenState extends State<DisbursalInitiateScreen> {
   }
 
   Future<void> _saveRecord(bool isEdit) async {
+    if (_isLoading) return;
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
     try {
@@ -233,7 +234,7 @@ class _DisbursalInitiateScreenState extends State<DisbursalInitiateScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                     decoration: BoxDecoration(border: isLast ? null : const Border(bottom: BorderSide(color: Color(0xFFF1F5F9)))),
                     child: Row(children: [
-                      Expanded(flex: 2, child: Text(r.queueId == 'I' ? 'I - Individual' : r.queueId == 'C' ? 'C - Corporate' : r.queueId == 'G' ? 'G - Group' : r.queueId, style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1E293B)))),
+                      Expanded(flex: 2, child: Text(r.queueId == 'I' ? 'I Individual' : r.queueId == 'C' ? 'C Corporate' : r.queueId == 'G' ? 'G Group' : r.queueId, style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1E293B)))),
                       Expanded(flex: 2, child: Text(r.clientId, style: const TextStyle(color: Color(0xFF475569)))),
                       Expanded(flex: 2, child: Text(r.approvedAmount.toString(), style: const TextStyle(fontSize: 13, color: Color(0xFF334155)))),
                       Expanded(flex: 2, child: _statusBadge(r.disbursementStatus)),
@@ -318,9 +319,9 @@ class _DisbursalInitiateScreenState extends State<DisbursalInitiateScreen> {
                 Wrap(spacing: 24, runSpacing: 24, children: [
                   SizedBox(width: 300, child: MFApiDropdownField(
                     label: 'Client Type', icon: Icons.person_outline, required: !isView,
-                    items: const [{'id': 'I', 'name': 'I - Individual'}, {'id': 'C', 'name': 'C - Corporate'}, {'id': 'G', 'name': 'G - Group'}],
+                    items: const [{'id': 'I', 'name': 'I Individual'}, {'id': 'C', 'name': 'C Corporate'}, {'id': 'G', 'name': 'G Group'}],
                     displayKeys: const ['name'],
-                    selectedItem: {'id': _clientType},
+                    selectedItem: {'id': _clientType, 'name': _clientType == 'I' ? 'I Individual' : _clientType == 'C' ? 'C Corporate' : 'G Group'},
                     onChanged: (v) { if (!isView) setState(() => _clientType = v?['id'] ?? 'I'); },
                     enabled: !isView,
                   )),
@@ -374,7 +375,7 @@ class _DisbursalInitiateScreenState extends State<DisbursalInitiateScreen> {
         Padding(
           padding: const EdgeInsets.all(24),
           child: Column(children: [
-            Row(children: [ const Text('Client Type: ', style: TextStyle(color: Color(0xFF64748B))), Text(r.queueId == 'I' ? 'I - Individual' : r.queueId == 'C' ? 'C - Corporate' : r.queueId == 'G' ? 'G - Group' : r.queueId, style: const TextStyle(fontWeight: FontWeight.w600)) ]),
+            Row(children: [ const Text('Client Type: ', style: TextStyle(color: Color(0xFF64748B))), Text(r.queueId == 'I' ? 'I Individual' : r.queueId == 'C' ? 'C Corporate' : r.queueId == 'G' ? 'G Group' : r.queueId, style: const TextStyle(fontWeight: FontWeight.w600)) ]),
             const SizedBox(height: 8),
             Row(children: [ const Text('Client ID: ', style: TextStyle(color: Color(0xFF64748B))), Text(r.clientId, style: const TextStyle(fontWeight: FontWeight.w600)) ]),
           ]),
