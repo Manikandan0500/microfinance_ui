@@ -61,7 +61,6 @@ class _DisbursalPendingScreenState extends State<DisbursalPendingScreen> {
 
   // ─── Form: Group (only for clientType == 'G') ─────────────────────────────
   String? _selectedGroupId;
-  List<Map<String, String>> _groups = [];
 
   // ─── Form: editable disbursal fields ─────────────────────────────────────
   final _productCodeCtrl = TextEditingController();
@@ -92,7 +91,6 @@ class _DisbursalPendingScreenState extends State<DisbursalPendingScreen> {
   void initState() {
     super.initState();
     _loadData();
-    _loadGroups();
     _disbursementAmtCtrl.addListener(_onDisbursementAmtChanged);
     _approvedTenureCtrl.addListener(_onRepaymentFieldChanged);
     _approvedInterestRateCtrl.addListener(_onRepaymentFieldChanged);
@@ -157,18 +155,10 @@ class _DisbursalPendingScreenState extends State<DisbursalPendingScreen> {
     }
   }
 
-  Future<void> _loadGroups() async {
-    try {
-      final g = await DisbursalApiService.getGroups();
-      if (mounted) setState(() => _groups = g);
-    } catch (_) {}
-  }
-
   DisbursalQueue? _findQueueFor(PendingDisbursal p) {
-    final clientId = p.loanAccountNo.replaceFirst('L-', '');
     try {
       return MockDatabase().disbursalQueue
-          .firstWhere((q) => q.clientId == clientId);
+          .firstWhere((q) => q.sourceRefNo == p.loanAccountNo);
     } catch (_) {
       return null;
     }
@@ -394,6 +384,7 @@ class _DisbursalPendingScreenState extends State<DisbursalPendingScreen> {
   Widget _lockedField(String label, String value, IconData icon) => SizedBox(
         width: 300,
         child: TextFormField(
+          key: ValueKey(value),
           initialValue: value,
           readOnly: true,
           style: const TextStyle(
@@ -807,12 +798,10 @@ class _DisbursalPendingScreenState extends State<DisbursalPendingScreen> {
                       const SizedBox(height: 12),
                       SizedBox(
                         width: 340,
-                        child: isView
-                            ? _lockedField(
-                                'Group',
-                                _selectedGroupId ?? '—',
-                                Icons.groups_2_outlined)
-                            : _groupDropdown(),
+                        child: _lockedField(
+                            'Group',
+                            _selectedGroupId ?? '—',
+                            Icons.groups_2_outlined),
                       ),
                     ],
                   ],
@@ -1185,56 +1174,7 @@ class _DisbursalPendingScreenState extends State<DisbursalPendingScreen> {
     );
   }
 
-  // ─── Group Dropdown (native, for G type only) ─────────────────────────────
 
-  Widget _groupDropdown() {
-    return DropdownButtonFormField<String>(
-      value: _groups.any((g) => g['id'] == _selectedGroupId)
-          ? _selectedGroupId
-          : null,
-      decoration: InputDecoration(
-        labelText: 'Group *',
-        labelStyle:
-            const TextStyle(color: Color(0xFF7C3AED), fontSize: 14),
-        prefixIcon: const Icon(Icons.groups_2_outlined,
-            color: Color(0xFF7C3AED), size: 20),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide:
-              BorderSide(color: Colors.purple.shade100, width: 1),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide:
-              BorderSide(color: Colors.purple.shade100, width: 1),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(
-              color: Color(0xFF7C3AED), width: 1.5),
-        ),
-        filled: true,
-        fillColor: Colors.white,
-      ),
-      icon: const Icon(Icons.keyboard_arrow_down_rounded,
-          color: Color(0xFF7C3AED)),
-      hint: const Text('Select a Group',
-          style: TextStyle(color: Color(0xFF94A3B8))),
-      validator: (v) =>
-          v == null || v.isEmpty ? 'Please select a group' : null,
-      onChanged: (val) => setState(() => _selectedGroupId = val),
-      items: _groups.map((g) {
-        return DropdownMenuItem<String>(
-          value: g['id'],
-          child: Text(g['name'] ?? g['id'] ?? '',
-              style: const TextStyle(
-                  fontSize: 13, color: Color(0xFF1E293B))),
-        );
-      }).toList(),
-    );
-  }
 
   // ─── Disbursement Mode Dropdown ───────────────────────────────────────────
 

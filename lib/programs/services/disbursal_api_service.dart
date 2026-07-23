@@ -117,7 +117,7 @@ class DisbursalApiService {
 
         list.add(PendingDisbursal(
           orgCode: org,
-          loanAccountNo: 'L-$clientId',
+          loanAccountNo: sourceRefNo ?? '',
           disbursementSeqNo: 1,
           disbursementAmount: approvedAmount,
           currencyCode: currencyCode,
