@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'services/queries_api_service.dart';
+import 'services/loan_repayment_schedule_api_service.dart';
 import 'models/loan_repayment_schedule.dart';
 import 'mf_shared_widgets.dart';
 
@@ -14,10 +14,9 @@ class LoanRepaymentScheduleScreen extends StatefulWidget {
 class _LoanRepaymentScheduleScreenState extends State<LoanRepaymentScheduleScreen> {
   MFView _view = MFView.list;
   LoanRepaymentSchedule? _sel;
-  String _search = '';
+  Map<String, dynamic>? _selectedLoanAccountMap;
   bool _isLoading = true;
   String? _loadError;
-  Timer? _debounce;
   int _currentPage = 1;
   final int _itemsPerPage = 10;
   List<LoanRepaymentSchedule> _data = [];
@@ -32,13 +31,26 @@ class _LoanRepaymentScheduleScreenState extends State<LoanRepaymentScheduleScree
     if (!mounted) return;
     setState(() { _isLoading = true; _loadError = null; });
     try {
-      final res = await QueriesApiService.getLoanRepaymentSchedules();
-      _data = res;
+      _data = await LoanRepaymentScheduleApiService.getLoanRepaymentSchedules();
     } catch (e) {
       _loadError = e.toString().replaceFirst('Exception: ', '');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  List<Map<String, dynamic>> get _loanAccountDropdownItems {
+    final set = <String>{};
+    for (final r in _data) {
+      if (r.loanAccountNo.isNotEmpty) {
+        set.add(r.loanAccountNo);
+      }
+    }
+    final list = set.toList()..sort();
+    return [
+      {'loanAccountNo': 'All Accounts'},
+      ...list.map((acc) => {'loanAccountNo': acc}),
+    ];
   }
 
   void _go(MFView v, [LoanRepaymentSchedule? r]) {
@@ -85,40 +97,52 @@ class _LoanRepaymentScheduleScreenState extends State<LoanRepaymentScheduleScree
   Widget _colHdr(String label) => Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white));
 
   Widget _list() {
-    final filtered = _data.where((r) {
-      final q = _search.toLowerCase();
-      return q.isEmpty || r.loanAccountNo.toLowerCase().contains(q) || r.installmentStatus.toLowerCase().contains(q);
-    }).toList();
+    final selAcc = (_selectedLoanAccountMap != null && _selectedLoanAccountMap!['loanAccountNo'] != 'All Accounts')
+        ? _selectedLoanAccountMap!['loanAccountNo'].toString().toLowerCase()
+        : null;
 
-    final pages = (filtered.length / _itemsPerPage).ceil();
+    final filtered = selAcc == null
+        ? _data
+        : _data.where((r) => r.loanAccountNo.toLowerCase() == selAcc).toList();
+
+    final pages = filtered.isEmpty ? 1 : (filtered.length / _itemsPerPage).ceil();
     final start = (_currentPage - 1) * _itemsPerPage;
     final end = (start + _itemsPerPage > filtered.length) ? filtered.length : start + _itemsPerPage;
     final items = filtered.isEmpty ? <LoanRepaymentSchedule>[] : filtered.sublist(start, end);
 
     return Column(children: [
-      _pageHeader(title: 'Loan Repayment Schedule', actions: []),
+      _pageHeader(title: 'Loan Repayment Schedule', actions: [
+        _hBtn('Refresh', icon: Icons.refresh_rounded, onTap: _loadData),
+      ]),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             const Spacer(),
+            if (_selectedLoanAccountMap != null && _selectedLoanAccountMap!['loanAccountNo'] != 'All Accounts') ...[
+              _hBtn('Clear Selection', icon: Icons.close_rounded, onTap: () {
+                setState(() {
+                  _selectedLoanAccountMap = null;
+                  _currentPage = 1;
+                });
+              }),
+              const SizedBox(width: 12),
+            ],
             SizedBox(
-              width: 280, height: 40,
-              child: TextField(
-                onChanged: (v) {
-                  if (_debounce?.isActive ?? false) _debounce!.cancel();
-                  _debounce = Timer(const Duration(milliseconds: 300), () => setState(() { _search = v; _currentPage = 1; }));
+              width: 320,
+              child: MFApiDropdownField(
+                label: 'Loan Account No',
+                icon: Icons.account_balance_wallet_rounded,
+                items: _loanAccountDropdownItems,
+                displayKeys: const ['loanAccountNo'],
+                selectedItem: _selectedLoanAccountMap,
+                onChanged: (item) {
+                  setState(() {
+                    _selectedLoanAccountMap = item;
+                    _currentPage = 1;
+                  });
                 },
-                decoration: InputDecoration(
-                  hintText: 'Search schedules...',
-                  prefixIcon: const Icon(Icons.search, size: 18, color: Color(0xFF64748B)),
-                  filled: true, fillColor: Colors.white,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF1E3050), width: 2)),
-                ),
               ),
             ),
           ],
@@ -148,13 +172,13 @@ class _LoanRepaymentScheduleScreenState extends State<LoanRepaymentScheduleScree
                 _hBtn('Retry', icon: Icons.refresh_rounded, onTap: _loadData),
               ])))
             else if (items.isEmpty)
-              const Expanded(child: Center(child: Text('No records found', style: TextStyle(color: Color(0xFF64748B)))))
+              Expanded(child: Center(child: Text(_data.isEmpty ? 'No repayment schedules found' : 'No matching schedules found', style: const TextStyle(color: Color(0xFF64748B)))))
             else
               Expanded(
                 child: ListView.separated(
                   padding: EdgeInsets.zero,
                   itemCount: items.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                  separatorBuilder: (context, index) => const Divider(height: 1, color: Color(0xFFE2E8F0)),
                   itemBuilder: (_, i) {
                     final r = items[i];
                     return InkWell(
@@ -170,8 +194,8 @@ class _LoanRepaymentScheduleScreenState extends State<LoanRepaymentScheduleScree
                           Expanded(flex: 2, child: Row(children: [
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(color: r.installmentStatus == 'Paid' ? const Color(0xFFDCFCE7) : (r.installmentStatus == 'Overdue' ? const Color(0xFFFEE2E2) : const Color(0xFFFEF9C3)), borderRadius: BorderRadius.circular(6)),
-                              child: Text(r.installmentStatus, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: r.installmentStatus == 'Paid' ? const Color(0xFF16A34A) : (r.installmentStatus == 'Overdue' ? const Color(0xFFDC2626) : const Color(0xFFCA8A04)))),
+                              decoration: BoxDecoration(color: r.installmentStatus.toUpperCase() == 'PAID' ? const Color(0xFFDCFCE7) : (r.installmentStatus.toUpperCase() == 'OVERDUE' ? const Color(0xFFFEE2E2) : const Color(0xFFFEF9C3)), borderRadius: BorderRadius.circular(6)),
+                              child: Text(r.installmentStatus, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: r.installmentStatus.toUpperCase() == 'PAID' ? const Color(0xFF16A34A) : (r.installmentStatus.toUpperCase() == 'OVERDUE' ? const Color(0xFFDC2626) : const Color(0xFFCA8A04)))),
                             ),
                           ])),
                           SizedBox(width: 80, child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
@@ -194,7 +218,7 @@ class _LoanRepaymentScheduleScreenState extends State<LoanRepaymentScheduleScree
                 padding: const EdgeInsets.all(16),
                 decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFE2E8F0)))),
                 child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  Text('Showing $start to $end of ${filtered.length} entries', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                  Text('Showing ${start + 1} to $end of ${filtered.length} entries', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
                   Row(children: [
                     _hBtn('Prev', icon: Icons.chevron_left_rounded, onTap: _currentPage > 1 ? () => setState(() => _currentPage--) : () {}),
                     const SizedBox(width: 8),
@@ -230,9 +254,6 @@ class _LoanRepaymentScheduleScreenState extends State<LoanRepaymentScheduleScree
                 _secHdr('SCHEDULE DETAILS'),
                 const SizedBox(height: 16),
                 Wrap(spacing: 24, runSpacing: 24, children: [
-                  SizedBox(width: 300, child: MFFloatingLabelField(
-                    label: 'Org Code', ctrl: TextEditingController(text: r.orgCode), icon: Icons.domain, readOnly: true, showLock: true,
-                  )),
                   SizedBox(width: 300, child: MFFloatingLabelField(
                     label: 'Loan Account No', ctrl: TextEditingController(text: r.loanAccountNo), icon: Icons.numbers_rounded, readOnly: true, showLock: true,
                   )),
