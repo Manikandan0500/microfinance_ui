@@ -740,3 +740,109 @@ void showAuthPendingDialog(BuildContext context, {required VoidCallback onGoToQu
   );
 }
 
+class MFAutocompleteField extends StatelessWidget {
+  final TextEditingController controller;
+  final List<String> suggestions;
+  final String hintText;
+  final VoidCallback? onSubmitted;
+
+  const MFAutocompleteField({
+    super.key,
+    required this.controller,
+    required this.suggestions,
+    this.hintText = 'Enter Loan Account Number...',
+    this.onSubmitted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Autocomplete<String>(
+      optionsBuilder: (TextEditingValue textEditingValue) {
+        if (textEditingValue.text.isEmpty) {
+          return const Iterable<String>.empty();
+        }
+        return suggestions.where((String option) {
+          return option.toLowerCase().contains(textEditingValue.text.toLowerCase());
+        });
+      },
+      onSelected: (String selection) {
+        controller.text = selection;
+        if (onSubmitted != null) {
+          onSubmitted!();
+        }
+      },
+      fieldViewBuilder: (BuildContext context, TextEditingController textEditingController, FocusNode fieldFocusNode, VoidCallback onFieldSubmitted) {
+        // Synchronize changes between standard controller and autocomplete controller
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (controller.text != textEditingController.text) {
+            textEditingController.text = controller.text;
+          }
+        });
+        textEditingController.addListener(() {
+          if (controller.text != textEditingController.text) {
+            controller.text = textEditingController.text;
+          }
+        });
+
+        return TextField(
+          controller: textEditingController,
+          focusNode: fieldFocusNode,
+          decoration: InputDecoration(
+            hintText: hintText,
+            prefixIcon: const Icon(Icons.numbers_rounded, size: 18, color: Color(0xFF64748B)),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF1E3050), width: 2)),
+          ),
+          onSubmitted: (_) {
+            onFieldSubmitted();
+            if (onSubmitted != null) {
+              onSubmitted!();
+            }
+          },
+        );
+      },
+      optionsViewBuilder: (BuildContext context, AutocompleteOnSelected<String> onSelected, Iterable<String> options) {
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            elevation: 4.0,
+            borderRadius: BorderRadius.circular(10),
+            color: Colors.white,
+            child: Container(
+              width: 320,
+              constraints: const BoxConstraints(maxHeight: 200),
+              decoration: BoxDecoration(
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: ListView.builder(
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                itemCount: options.length,
+                itemBuilder: (BuildContext context, int index) {
+                  final String option = options.elementAt(index);
+                  return InkWell(
+                    onTap: () => onSelected(option),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      child: Text(
+                        option,
+                        style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:async';
 import 'services/loan_repayment_schedule_api_service.dart';
 import 'models/loan_repayment_schedule.dart';
 import 'mf_shared_widgets.dart';
@@ -14,43 +13,70 @@ class LoanRepaymentScheduleScreen extends StatefulWidget {
 class _LoanRepaymentScheduleScreenState extends State<LoanRepaymentScheduleScreen> {
   MFView _view = MFView.list;
   LoanRepaymentSchedule? _sel;
-  Map<String, dynamic>? _selectedLoanAccountMap;
-  bool _isLoading = true;
+  final TextEditingController _searchCtrl = TextEditingController();
+  bool _isLoading = false;
+  bool _searched = false;
   String? _loadError;
-  int _currentPage = 1;
-  final int _itemsPerPage = 10;
   List<LoanRepaymentSchedule> _data = [];
+  List<String> _accountNos = [];
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadSuggestions();
   }
 
-  Future<void> _loadData() async {
-    if (!mounted) return;
-    setState(() { _isLoading = true; _loadError = null; });
+  Future<void> _loadSuggestions() async {
     try {
-      _data = await LoanRepaymentScheduleApiService.getLoanRepaymentSchedules();
-    } catch (e) {
-      _loadError = e.toString().replaceFirst('Exception: ', '');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      final res = await LoanRepaymentScheduleApiService.getLoanRepaymentSchedules();
+      final set = res.map((e) => e.loanAccountNo).where((no) => no.isNotEmpty).toSet();
+      if (mounted) {
+        setState(() {
+          _accountNos = set.toList()..sort();
+        });
+      }
+    } catch (_) {
+      // Fail silently for suggestions
     }
   }
 
-  List<Map<String, dynamic>> get _loanAccountDropdownItems {
-    final set = <String>{};
-    for (final r in _data) {
-      if (r.loanAccountNo.isNotEmpty) {
-        set.add(r.loanAccountNo);
+  Future<void> _performSearch() async {
+    final loanNo = _searchCtrl.text.trim();
+    if (loanNo.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a Loan Account Number')),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+      _searched = true;
+      _data = [];
+      _view = MFView.list;
+      _sel = null;
+    });
+
+    try {
+      final res = await LoanRepaymentScheduleApiService.getLoanRepaymentSchedules(loanAccountNo: loanNo);
+      if (mounted) {
+        setState(() {
+          _data = res;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loadError = e.toString().replaceFirst('Exception: ', '');
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
       }
     }
-    final list = set.toList()..sort();
-    return [
-      {'loanAccountNo': 'All Accounts'},
-      ...list.map((acc) => {'loanAccountNo': acc}),
-    ];
   }
 
   void _go(MFView v, [LoanRepaymentSchedule? r]) {
@@ -60,7 +86,7 @@ class _LoanRepaymentScheduleScreenState extends State<LoanRepaymentScheduleScree
     });
   }
 
-  Widget _pageHeader({required String title, required List<Widget> actions}) => Container(
+  Widget _pageHeader({required String title, List<Widget> actions = const []}) => Container(
     padding: const EdgeInsets.all(24),
     decoration: const BoxDecoration(color: Colors.white),
     child: Row(children: [
@@ -72,6 +98,8 @@ class _LoanRepaymentScheduleScreenState extends State<LoanRepaymentScheduleScree
 
   Widget _secHdr(String t) => Text(t, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF64748B), letterSpacing: 1.2));
   
+  Widget _colHdr(String label) => Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white));
+
   Widget _card({required Widget child}) => Container(
     width: double.infinity,
     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFFE2E8F0))),
@@ -94,144 +122,215 @@ class _LoanRepaymentScheduleScreenState extends State<LoanRepaymentScheduleScree
     ),
   );
 
-  Widget _colHdr(String label) => Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white));
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_view == MFView.view) return _form();
+    return _list();
+  }
 
   Widget _list() {
-    final selAcc = (_selectedLoanAccountMap != null && _selectedLoanAccountMap!['loanAccountNo'] != 'All Accounts')
-        ? _selectedLoanAccountMap!['loanAccountNo'].toString().toLowerCase()
-        : null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _pageHeader(title: 'Loan Repayment Schedule'),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          child: _card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: MFAutocompleteField(
+                      controller: _searchCtrl,
+                      suggestions: _accountNos,
+                      onSubmitted: _performSearch,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  ElevatedButton.icon(
+                    onPressed: _isLoading ? null : _performSearch,
+                    icon: const Icon(Icons.search, size: 18),
+                    label: const Text('Search'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1E3050),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: _buildContent(),
+          ),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
 
-    final filtered = selAcc == null
-        ? _data
-        : _data.where((r) => r.loanAccountNo.toLowerCase() == selAcc).toList();
+  Widget _buildContent() {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF1E3050)),
+      );
+    }
 
-    final pages = filtered.isEmpty ? 1 : (filtered.length / _itemsPerPage).ceil();
-    final start = (_currentPage - 1) * _itemsPerPage;
-    final end = (start + _itemsPerPage > filtered.length) ? filtered.length : start + _itemsPerPage;
-    final items = filtered.isEmpty ? <LoanRepaymentSchedule>[] : filtered.sublist(start, end);
-
-    return Column(children: [
-      _pageHeader(title: 'Loan Repayment Schedule', actions: [
-        _hBtn('Refresh', icon: Icons.refresh_rounded, onTap: _loadData),
-      ]),
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
+    if (_loadError != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Spacer(),
-            if (_selectedLoanAccountMap != null && _selectedLoanAccountMap!['loanAccountNo'] != 'All Accounts') ...[
-              _hBtn('Clear Selection', icon: Icons.close_rounded, onTap: () {
-                setState(() {
-                  _selectedLoanAccountMap = null;
-                  _currentPage = 1;
-                });
-              }),
-              const SizedBox(width: 12),
-            ],
-            SizedBox(
-              width: 320,
-              child: MFApiDropdownField(
-                label: 'Loan Account No',
-                icon: Icons.account_balance_wallet_rounded,
-                items: _loanAccountDropdownItems,
-                displayKeys: const ['loanAccountNo'],
-                selectedItem: _selectedLoanAccountMap,
-                onChanged: (item) {
-                  setState(() {
-                    _selectedLoanAccountMap = item;
-                    _currentPage = 1;
-                  });
-                },
+            const Icon(Icons.error_outline_rounded, size: 48, color: Color(0xFFDC2626)),
+            const SizedBox(height: 16),
+            Text(_loadError!, style: const TextStyle(color: Color(0xFFDC2626))),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _performSearch,
+              icon: const Icon(Icons.refresh_rounded, size: 16),
+              label: const Text('Retry'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1E3050),
+                foregroundColor: Colors.white,
               ),
             ),
           ],
         ),
-      ),
-      Expanded(
-        child: _card(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              decoration: const BoxDecoration(color: Color(0xFF1E3050), border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0)))),
-              child: Row(children: [
-                Expanded(flex: 2, child: _colHdr('LOAN ACCOUNT NO')),
-                Expanded(flex: 1, child: _colHdr('INST.')),
-                Expanded(flex: 2, child: _colHdr('DUE DATE')),
-                Expanded(flex: 2, child: _colHdr('TOTAL DUE')),
-                Expanded(flex: 2, child: _colHdr('STATUS')),
-                const SizedBox(width: 80, child: Text('ACTIONS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white), textAlign: TextAlign.right)),
-              ]),
-            ),
-            if (_isLoading)
-              const Expanded(child: Center(child: CircularProgressIndicator(color: Color(0xFF1E3050))))
-            else if (_loadError != null)
-              Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.error_outline_rounded, size: 48, color: Color(0xFFDC2626)), const SizedBox(height: 16),
-                Text(_loadError!, style: const TextStyle(color: Color(0xFFDC2626))), const SizedBox(height: 16),
-                _hBtn('Retry', icon: Icons.refresh_rounded, onTap: _loadData),
-              ])))
-            else if (items.isEmpty)
-              Expanded(child: Center(child: Text(_data.isEmpty ? 'No repayment schedules found' : 'No matching schedules found', style: const TextStyle(color: Color(0xFF64748B)))))
-            else
-              Expanded(
-                child: ListView.separated(
-                  padding: EdgeInsets.zero,
-                  itemCount: items.length,
-                  separatorBuilder: (context, index) => const Divider(height: 1, color: Color(0xFFE2E8F0)),
-                  itemBuilder: (_, i) {
-                    final r = items[i];
-                    return InkWell(
-                      onTap: () => _go(MFView.view, r),
-                      hoverColor: const Color(0xFFF8FAFC),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                        child: Row(children: [
-                          Expanded(flex: 2, child: Text(r.loanAccountNo, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)))),
-                          Expanded(flex: 1, child: Text(r.installmentNo.toString(), style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)))),
-                          Expanded(flex: 2, child: Text(r.dueDate.toIso8601String().substring(0, 10), style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)))),
-                          Expanded(flex: 2, child: Text(r.totalDue.toStringAsFixed(2), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)))),
-                          Expanded(flex: 2, child: Row(children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(color: r.installmentStatus.toUpperCase() == 'PAID' ? const Color(0xFFDCFCE7) : (r.installmentStatus.toUpperCase() == 'OVERDUE' ? const Color(0xFFFEE2E2) : const Color(0xFFFEF9C3)), borderRadius: BorderRadius.circular(6)),
-                              child: Text(r.installmentStatus, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: r.installmentStatus.toUpperCase() == 'PAID' ? const Color(0xFF16A34A) : (r.installmentStatus.toUpperCase() == 'OVERDUE' ? const Color(0xFFDC2626) : const Color(0xFFCA8A04)))),
-                            ),
-                          ])),
-                          SizedBox(width: 80, child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                            MouseRegion(
-                              cursor: SystemMouseCursors.click,
-                              child: GestureDetector(
-                                onTap: () => _go(MFView.view, r),
-                                child: Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(6)), child: const Icon(Icons.visibility_rounded, size: 16, color: Color(0xFF1E3050))),
-                              ),
-                            ),
-                          ])),
-                        ]),
+      );
+    }
+
+    if (!_searched) {
+      return const Center(
+        child: Text(
+          'Enter a Loan Account Number to retrieve repayment schedule.',
+          style: TextStyle(color: Color(0xFF64748B), fontSize: 14),
+        ),
+      );
+    }
+
+    if (_data.isEmpty) {
+      return const Center(
+        child: Text(
+          'No records found',
+          style: TextStyle(color: Color(0xFF64748B), fontSize: 14),
+        ),
+      );
+    }
+
+    final firstRecord = _data.first;
+
+    return SingleChildScrollView(
+      child: _card(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _secHdr('SCHEDULE DETAILS'),
+              const SizedBox(height: 24),
+              Wrap(
+                spacing: 24,
+                runSpacing: 24,
+                children: [
+                  SizedBox(width: 300, child: MFFloatingLabelField(
+                    label: 'Org Code', ctrl: TextEditingController(text: firstRecord.orgCode ?? '101'), icon: Icons.domain, readOnly: true, showLock: true,
+                  )),
+                  SizedBox(width: 300, child: MFFloatingLabelField(
+                    label: 'Loan Account Number', ctrl: TextEditingController(text: firstRecord.loanAccountNo), icon: Icons.numbers_rounded, readOnly: true, showLock: true,
+                  )),
+                ],
+              ),
+              const SizedBox(height: 32),
+              _secHdr('REPAYMENT SCHEDULES'),
+              const SizedBox(height: 16),
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF1E3050),
                       ),
-                    );
-                  },
+                      child: Row(
+                        children: [
+                          Expanded(flex: 1, child: _colHdr('INST.')),
+                          Expanded(flex: 2, child: _colHdr('DUE DATE')),
+                          Expanded(flex: 2, child: _colHdr('PRINCIPAL DUE')),
+                          Expanded(flex: 2, child: _colHdr('INTEREST DUE')),
+                          Expanded(flex: 2, child: _colHdr('TOTAL DUE')),
+                          Expanded(flex: 2, child: _colHdr('STATUS')),
+                          const SizedBox(width: 80, child: Text('ACTIONS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white), textAlign: TextAlign.right)),
+                        ],
+                      ),
+                    ),
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: EdgeInsets.zero,
+                      itemCount: _data.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                      itemBuilder: (_, i) {
+                        final r = _data[i];
+                        return InkWell(
+                          onTap: () => _go(MFView.view, r),
+                          hoverColor: const Color(0xFFF8FAFC),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                            child: Row(
+                              children: [
+                                Expanded(flex: 1, child: Text(r.installmentNo.toString(), style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)))),
+                                Expanded(flex: 2, child: Text(r.dueDate.toIso8601String().substring(0, 10), style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)))),
+                                Expanded(flex: 2, child: Text(r.principalDue.toStringAsFixed(2), style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)))),
+                                Expanded(flex: 2, child: Text(r.interestDue.toStringAsFixed(2), style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)))),
+                                Expanded(flex: 2, child: Text(r.totalDue.toStringAsFixed(2), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)))),
+                                Expanded(flex: 2, child: Row(children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(color: r.installmentStatus.toUpperCase() == 'PAID' ? const Color(0xFFDCFCE7) : (r.installmentStatus.toUpperCase() == 'OVERDUE' ? const Color(0xFFFEE2E2) : const Color(0xFFFEF9C3)), borderRadius: BorderRadius.circular(6)),
+                                    child: Text(r.installmentStatus, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: r.installmentStatus.toUpperCase() == 'PAID' ? const Color(0xFF16A34A) : (r.installmentStatus.toUpperCase() == 'OVERDUE' ? const Color(0xFFDC2626) : const Color(0xFFCA8A04)))),
+                                  ),
+                                ])),
+                                SizedBox(width: 80, child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                                  MouseRegion(
+                                    cursor: SystemMouseCursors.click,
+                                    child: GestureDetector(
+                                      onTap: () => _go(MFView.view, r),
+                                      child: Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(6)), child: const Icon(Icons.visibility_rounded, size: 16, color: Color(0xFF1E3050))),
+                                    ),
+                                  ),
+                                ])),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ),
-            if (pages > 1)
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFE2E8F0)))),
-                child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  Text('Showing ${start + 1} to $end of ${filtered.length} entries', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
-                  Row(children: [
-                    _hBtn('Prev', icon: Icons.chevron_left_rounded, onTap: _currentPage > 1 ? () => setState(() => _currentPage--) : () {}),
-                    const SizedBox(width: 8),
-                    Text('Page $_currentPage of $pages', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF1E293B))),
-                    const SizedBox(width: 8),
-                    _hBtn('Next', icon: Icons.chevron_right_rounded, onTap: _currentPage < pages ? () => setState(() => _currentPage++) : () {}),
-                  ]),
-                ]),
-              ),
-          ]),
+            ],
+          ),
         ),
       ),
-    ]);
+    );
   }
 
   Widget _form() {
@@ -293,11 +392,5 @@ class _LoanRepaymentScheduleScreenState extends State<LoanRepaymentScheduleScree
         ),
       ),
     ]);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_view == MFView.list) return _list();
-    return _form();
   }
 }

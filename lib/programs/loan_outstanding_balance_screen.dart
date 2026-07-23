@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'dart:async';
 import 'services/queries_api_service.dart';
+import 'services/loan_repayment_schedule_api_service.dart';
 import 'models/loan_outstanding_balance.dart';
 import 'mf_shared_widgets.dart';
 
@@ -12,49 +12,76 @@ class LoanOutstandingBalanceScreen extends StatefulWidget {
 }
 
 class _LoanOutstandingBalanceScreenState extends State<LoanOutstandingBalanceScreen> {
-  MFView _view = MFView.list;
-  LoanOutstandingBalance? _sel;
-  String _search = '';
-  bool _isLoading = true;
+  final TextEditingController _searchCtrl = TextEditingController();
+  bool _isLoading = false;
+  bool _searched = false;
   String? _loadError;
-  Timer? _debounce;
-  int _currentPage = 1;
-  final int _itemsPerPage = 10;
-  List<LoanOutstandingBalance> _data = [];
+  LoanOutstandingBalance? _data;
+  List<String> _accountNos = [];
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadSuggestions();
   }
 
-  Future<void> _loadData() async {
-    if (!mounted) return;
-    setState(() { _isLoading = true; _loadError = null; });
+  Future<void> _loadSuggestions() async {
     try {
-      final res = await QueriesApiService.getLoanOutstandingBalances();
-      _data = res;
-    } catch (e) {
-      _loadError = e.toString().replaceFirst('Exception: ', '');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      final res = await LoanRepaymentScheduleApiService.getLoanRepaymentSchedules();
+      final set = res.map((e) => e.loanAccountNo).where((no) => no.isNotEmpty).toSet();
+      if (mounted) {
+        setState(() {
+          _accountNos = set.toList()..sort();
+        });
+      }
+    } catch (_) {
+      // Fail silently for suggestions
     }
   }
 
-  void _go(MFView v, [LoanOutstandingBalance? r]) {
+
+  Future<void> _performSearch() async {
+    final loanNo = _searchCtrl.text.trim();
+    if (loanNo.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a Loan Account Number')),
+      );
+      return;
+    }
+
+    if (!mounted) return;
     setState(() {
-      _view = v;
-      _sel = r;
+      _isLoading = true;
+      _loadError = null;
+      _searched = true;
+      _data = null;
     });
+
+    try {
+      final res = await QueriesApiService.getLoanOutstandingBalance(loanNo);
+      if (mounted) {
+        setState(() {
+          _data = res;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loadError = e.toString().replaceFirst('Exception: ', '');
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
-  Widget _pageHeader({required String title, required List<Widget> actions}) => Container(
+  Widget _pageHeader({required String title}) => Container(
     padding: const EdgeInsets.all(24),
     decoration: const BoxDecoration(color: Colors.white),
     child: Row(children: [
       Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF1E293B))),
-      const Spacer(),
-      ...actions,
     ]),
   );
 
@@ -67,168 +94,127 @@ class _LoanOutstandingBalanceScreenState extends State<LoanOutstandingBalanceScr
     child: child,
   );
 
-  Widget _hBtn(String label, {required IconData icon, required VoidCallback onTap, Color fg = const Color(0xFF64748B), Color border = const Color(0xFFE2E8F0)}) => MouseRegion(
-    cursor: SystemMouseCursors.click,
-    child: GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: border)),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 16, color: fg), const SizedBox(width: 8),
-          Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: fg)),
-        ]),
-      ),
-    ),
-  );
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
 
-  Widget _colHdr(String label) => Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white));
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _pageHeader(title: 'Loan Outstanding Balance'),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          child: _card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                   Expanded(
+                    child: MFAutocompleteField(
+                      controller: _searchCtrl,
+                      suggestions: _accountNos,
+                      onSubmitted: _performSearch,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  ElevatedButton.icon(
+                    onPressed: _isLoading ? null : _performSearch,
+                    icon: const Icon(Icons.search, size: 18),
+                    label: const Text('Search'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1E3050),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: _buildContent(),
+          ),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
 
-  Widget _list() {
-    final filtered = _data.where((r) {
-      final q = _search.toLowerCase();
-      return q.isEmpty || r.loanAccountNo.toLowerCase().contains(q);
-    }).toList();
+  Widget _buildContent() {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF1E3050)),
+      );
+    }
 
-    final pages = (filtered.length / _itemsPerPage).ceil();
-    final start = (_currentPage - 1) * _itemsPerPage;
-    final end = (start + _itemsPerPage > filtered.length) ? filtered.length : start + _itemsPerPage;
-    final items = filtered.isEmpty ? <LoanOutstandingBalance>[] : filtered.sublist(start, end);
-
-    return Column(children: [
-      _pageHeader(title: 'Loan Outstanding Balance', actions: []),
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
+    if (_loadError != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Spacer(),
-            SizedBox(
-              width: 280, height: 40,
-              child: TextField(
-                onChanged: (v) {
-                  if (_debounce?.isActive ?? false) _debounce!.cancel();
-                  _debounce = Timer(const Duration(milliseconds: 300), () => setState(() { _search = v; _currentPage = 1; }));
-                },
-                decoration: InputDecoration(
-                  hintText: 'Search loans...',
-                  prefixIcon: const Icon(Icons.search, size: 18, color: Color(0xFF64748B)),
-                  filled: true, fillColor: Colors.white,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF1E3050), width: 2)),
-                ),
+            const Icon(Icons.error_outline_rounded, size: 48, color: Color(0xFFDC2626)),
+            const SizedBox(height: 16),
+            Text(_loadError!, style: const TextStyle(color: Color(0xFFDC2626))),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _performSearch,
+              icon: const Icon(Icons.refresh_rounded, size: 16),
+              label: const Text('Retry'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1E3050),
+                foregroundColor: Colors.white,
               ),
             ),
           ],
         ),
-      ),
-      Expanded(
-        child: _card(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              decoration: const BoxDecoration(color: Color(0xFF1E3050), border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0)))),
-              child: Row(children: [
-                Expanded(flex: 2, child: _colHdr('LOAN ACCOUNT NO')),
-                Expanded(flex: 2, child: _colHdr('AS ON DATE')),
-                Expanded(flex: 2, child: _colHdr('PRINCIPAL')),
-                Expanded(flex: 2, child: _colHdr('INTEREST')),
-                Expanded(flex: 2, child: _colHdr('TOTAL OUTSTANDING')),
-                const SizedBox(width: 80, child: Text('ACTIONS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white), textAlign: TextAlign.right)),
-              ]),
-            ),
-            if (_isLoading)
-              const Expanded(child: Center(child: CircularProgressIndicator(color: Color(0xFF1E3050))))
-            else if (_loadError != null)
-              Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.error_outline_rounded, size: 48, color: Color(0xFFDC2626)), const SizedBox(height: 16),
-                Text(_loadError!, style: const TextStyle(color: Color(0xFFDC2626))), const SizedBox(height: 16),
-                _hBtn('Retry', icon: Icons.refresh_rounded, onTap: _loadData),
-              ])))
-            else if (items.isEmpty)
-              const Expanded(child: Center(child: Text('No records found', style: TextStyle(color: Color(0xFF64748B)))))
-            else
-              Expanded(
-                child: ListView.separated(
-                  padding: EdgeInsets.zero,
-                  itemCount: items.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFE2E8F0)),
-                  itemBuilder: (_, i) {
-                    final r = items[i];
-                    return InkWell(
-                      onTap: () => _go(MFView.view, r),
-                      hoverColor: const Color(0xFFF8FAFC),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                        child: Row(children: [
-                          Expanded(flex: 2, child: Text(r.loanAccountNo, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)))),
-                          Expanded(flex: 2, child: Text(r.asOnDate.toIso8601String().substring(0, 10), style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)))),
-                          Expanded(flex: 2, child: Text(r.principalOutstanding.toStringAsFixed(2), style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)))),
-                          Expanded(flex: 2, child: Text(r.interestOutstanding.toStringAsFixed(2), style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)))),
-                          Expanded(flex: 2, child: Text(r.totalOutstanding.toStringAsFixed(2), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)))),
-                          SizedBox(width: 80, child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                            MouseRegion(
-                              cursor: SystemMouseCursors.click,
-                              child: GestureDetector(
-                                onTap: () => _go(MFView.view, r),
-                                child: Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(6)), child: const Icon(Icons.visibility_rounded, size: 16, color: Color(0xFF1E3050))),
-                              ),
-                            ),
-                          ])),
-                        ]),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            if (pages > 1)
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFE2E8F0)))),
-                child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  Text('Showing $start to $end of ${filtered.length} entries', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
-                  Row(children: [
-                    _hBtn('Prev', icon: Icons.chevron_left_rounded, onTap: _currentPage > 1 ? () => setState(() => _currentPage--) : () {}),
-                    const SizedBox(width: 8),
-                    Text('Page $_currentPage of $pages', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF1E293B))),
-                    const SizedBox(width: 8),
-                    _hBtn('Next', icon: Icons.chevron_right_rounded, onTap: _currentPage < pages ? () => setState(() => _currentPage++) : () {}),
-                  ]),
-                ]),
-              ),
-          ]),
-        ),
-      ),
-    ]);
-  }
+      );
+    }
 
-  Widget _form() {
-    if (_sel == null) return const SizedBox();
-    final r = _sel!;
-    return Column(children: [
-      _pageHeader(
-        title: 'View Outstanding Balance',
-        actions: [
-          _hBtn('Back', icon: Icons.arrow_back_rounded, onTap: () => _go(MFView.list)),
-        ],
-      ),
-      Expanded(
-        child: SingleChildScrollView(
+    if (!_searched) {
+      return const Center(
+        child: Text(
+          'Enter a Loan Account Number to retrieve outstanding balance.',
+          style: TextStyle(color: Color(0xFF64748B), fontSize: 14),
+        ),
+      );
+    }
+
+    if (_data == null) {
+      return const Center(
+        child: Text(
+          'No records found',
+          style: TextStyle(color: Color(0xFF64748B), fontSize: 14),
+        ),
+      );
+    }
+
+    final r = _data!;
+    return SingleChildScrollView(
+      child: _card(
+        child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Column(children: [
-            _card(child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                _secHdr('BALANCE DETAILS'),
-                const SizedBox(height: 16),
-                Wrap(spacing: 24, runSpacing: 24, children: [
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _secHdr('OUTSTANDING DETAILS'),
+              const SizedBox(height: 24),
+              Wrap(
+                spacing: 24,
+                runSpacing: 24,
+                children: [
                   SizedBox(width: 300, child: MFFloatingLabelField(
                     label: 'Org Code', ctrl: TextEditingController(text: r.orgCode), icon: Icons.domain, readOnly: true, showLock: true,
                   )),
                   SizedBox(width: 300, child: MFFloatingLabelField(
-                    label: 'Loan Account No', ctrl: TextEditingController(text: r.loanAccountNo), icon: Icons.numbers_rounded, readOnly: true, showLock: true,
+                    label: 'Loan Account Number', ctrl: TextEditingController(text: r.loanAccountNo), icon: Icons.numbers_rounded, readOnly: true, showLock: true,
                   )),
                   SizedBox(width: 300, child: MFFloatingLabelField(
                     label: 'As On Date', ctrl: TextEditingController(text: r.asOnDate.toIso8601String().substring(0, 10)), icon: Icons.calendar_today, readOnly: true, showLock: true,
@@ -245,18 +231,12 @@ class _LoanOutstandingBalanceScreenState extends State<LoanOutstandingBalanceScr
                   SizedBox(width: 300, child: MFFloatingLabelField(
                     label: 'Total Outstanding', ctrl: TextEditingController(text: r.totalOutstanding.toStringAsFixed(2)), icon: Icons.account_balance_wallet, readOnly: true, showLock: true,
                   )),
-                ]),
-              ]),
-            )),
-          ]),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
-    ]);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_view == MFView.list) return _list();
-    return _form();
+    );
   }
 }
