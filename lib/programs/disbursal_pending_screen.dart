@@ -324,7 +324,7 @@ class _DisbursalPendingScreenState extends State<DisbursalPendingScreen> {
       disbursedByUserId: _disbursedByUserCtrl.text.trim(),
       disbursementDate:
           DateTime.tryParse(_disbursementDateCtrl.text) ?? DateTime.now(),
-      disbursementStatus: 'Pending Authorization',
+      disbursementStatus: 'COMPLETED',
     );
 
     final updatedQueue = _selQueue!.copyWith(
@@ -338,9 +338,12 @@ class _DisbursalPendingScreenState extends State<DisbursalPendingScreen> {
 
     setState(() => _isLoading = true);
     try {
-      await DisbursalApiService.submitToAuthQueue(
-          updatedPending.loanAccountNo, updatedPending, updatedQueue);
-      _toast('Submitted to Authorization Queue!', isError: false);
+      await DisbursalApiService.completeDisbursement(
+        pending: updatedPending,
+        queue: updatedQueue,
+        repaymentSchedule: _repaymentSchedule,
+      );
+      _toast('Disbursement completed successfully!', isError: false);
       await _loadData();
       setState(() => _view = MFView.list);
     } catch (e) {
